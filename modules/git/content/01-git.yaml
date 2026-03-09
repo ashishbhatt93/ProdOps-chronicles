@@ -1,0 +1,2026 @@
+# =============================================================================
+# PRODOPS CHRONICLES --- MODULE 02: GIT
+# Schema Version: 1.0
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. MODULE METADATA
+# -----------------------------------------------------------------------------
+module:
+  id: git
+  name: "Git"
+  version: "1.0.0"
+  pod: prodops-git
+  order: 2
+  mode: beginner
+  runtime: docker-compose
+  tags:
+    - git
+    - github
+    - ssh
+    - version-control
+    - branching
+    - pull-requests
+
+  description: >
+    The morning after the Mystery Server incident, Alex officially welcomes
+    you to the ops team — and immediately hands you your first real task:
+    set up your git environment properly. SSH keys, branch protection, pull
+    requests, conflict resolution — learn git the way professional engineers
+    use it. And while you're at it, set up the repo that will track your
+    entire ProdOps Chronicles journey.
+
+  unlock:
+    requires: linux-cli
+    score_threshold: 80
+
+# -----------------------------------------------------------------------------
+# 2. CHRONICLE
+# -----------------------------------------------------------------------------
+chronicle:
+  title: "Commit or Consequences"
+  tagline: "No direct pushes. No undocumented changes. No excuses."
+
+  setting: >
+    Finstack's ops team has always been too small and too busy to enforce
+    proper engineering hygiene. Jamie — the SRE who left last Friday —
+    was notorious for pushing directly to main, never writing commit
+    messages, and treating git like a backup tool rather than a
+    collaboration platform. The codebase is littered with commits
+    labelled "fix", "test", "asdfgh", and one memorable "why is this
+    not working". Alex has had enough. You're new. You're going to
+    do this right from day one.
+
+  incident: >
+    It's Tuesday morning. 9:15 AM. You've just made yourself a coffee
+    when Alex's message lands in Slack:
+
+    "Morning. Good work on the server yesterday. You're officially on
+    the ops team. Before you touch anything else — git environment,
+    properly set up. SSH keys, global config, branch protection on
+    your repo. I'll be checking. Also — Jordan starts today. Another
+    junior. You'll be working together on the payment dashboard fix
+    this afternoon. Don't push to main."
+
+    Two tasks. One morning. A new teammate you've never met.
+    And apparently, a payment dashboard fix this afternoon.
+    Let's start with git.
+
+  role: "Junior SRE"
+  team:
+    - name: "Alex"
+      role: "Senior SRE"
+      personality: >
+        Direct and no-nonsense. Sets high standards and expects you
+        to meet them without hand-holding. Notices everything —
+        commit messages, branch names, PR descriptions. Will call
+        you out publicly if you push to main. Will also quietly
+        acknowledge good work when he sees it.
+    - name: "Priya"
+      role: "Engineering Manager"
+      personality: >
+        Calm and strategic. Cares about team health and delivery.
+        Tracks performance across modules in her head even when
+        she doesn't say anything. The yearly review is hers to write.
+    - name: "Jordan"
+      role: "Junior SRE (new joiner, same level as you)"
+      personality: >
+        Enthusiastic and fast-moving. Sometimes too fast. Will push
+        code before reading the full diff. Means well. Good at
+        frontend config, less experienced with git workflows.
+        You'll need to work together this afternoon.
+    - name: "Jamie"
+      role: "Former SRE (offboarded)"
+      personality: >
+        Gone. But their commits are still in the history.
+        Their branch names are still in the repo.
+        Their cron jobs are still running.
+        You'll feel their presence all week.
+
+  stakes: >
+    The payment dashboard config fix needs to go out this afternoon.
+    Jordan is working on it too. If your git environment isn't set up
+    correctly before then — no SSH key, no branch protection, no idea
+    how to resolve a conflict — the fix will either not get merged,
+    or worse, get merged badly. Priya is watching the deployment window.
+    Alex is watching your git hygiene. Jordan is watching you for cues
+    on how things are done here. First impressions matter.
+
+  trackers:
+    morale:
+      initial: 100
+      min: 0
+      max: 100
+    technical_debt:
+      initial: 0
+      min: 0
+      max: 100
+    performance_score:
+      initial: 0
+      min: -50
+      max: 100
+
+# -----------------------------------------------------------------------------
+# 3. ACTS
+# -----------------------------------------------------------------------------
+acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 1 — Welcome to the Team
+  # ---------------------------------------------------------------------------
+  - id: act-1
+    title: "Welcome to the Team"
+    order: 1
+
+    narrative: >
+      Alex's message is clear. Git environment first, everything else second.
+      You open a new terminal. Time to figure out what's already on this
+      machine and what needs to be set up. A professional git environment
+      has three layers: the git binary itself, your global identity config,
+      and your credentials. You're going to build all three — in that order.
+
+    decision:
+      prompt: >
+        You run git --version and it returns a version number.
+        Git is already installed. Alex also asks: "What email are you
+        going to use for git config? Make sure it matches your GitHub."
+        What email do you configure?
+
+      options:
+        - id: option-a
+          label: "Personal email (matches GitHub account)"
+          description: >
+            Use the same email address that's registered on your GitHub
+            account. Commits will link directly to your profile.
+          consequences:
+            morale: +5
+            technical_debt: 0
+          leads_to: act-2
+          feedback: >
+            Smart call. When your commits show up on GitHub, they'll be
+            linked to your profile automatically. Your contribution graph
+            will reflect your actual work. Alex sees the config and says
+            nothing — which means it's correct.
+          future_echo: >
+            In Act 3, your commits will show your GitHub avatar next to
+            them in the PR. A small thing. But it signals that you set
+            things up properly from the start.
+
+        - id: option-b
+          label: "Work email (doesn't exist on GitHub yet)"
+          description: >
+            Use a work-style email. Feels more professional but isn't
+            linked to your GitHub account.
+          consequences:
+            morale: 0
+            technical_debt: +15
+          leads_to: act-2
+          feedback: >
+            Your commits will show up as unlinked in GitHub — no avatar,
+            no profile connection. Alex notices in Act 3 when reviewing
+            your PR: "Why are your commits showing as anonymous? Fix your
+            git config." Technical debt +15. You'll need to amend commits
+            later.
+          future_echo: >
+            In Act 3, you'll need to fix this before the PR looks right.
+            Costs time during the hotfix window.
+
+        - id: option-c
+          label: "Throwaway email (quick and easy)"
+          description: >
+            Use a random email. Just to get past this step.
+          consequences:
+            morale: -10
+            technical_debt: +25
+          leads_to: act-2
+          feedback: >
+            Alex reviews your first commit in Act 4 and messages:
+            "Who is noreply@test.com? Is that you?" Technical debt +25.
+            Your entire commit history for this module will need to be
+            corrected. This follows you to the yearly review.
+          future_echo: >
+            Every commit in Acts 3, 4, and 5 will show the wrong author.
+            Fixing this mid-hotfix is painful and embarrassing.
+
+    tasks:
+      - id: task-1-1
+        title: "Verify git is installed"
+        order: 1
+        context: >
+          Before configuring anything, confirm git is present and
+          note the version. Some git features behave differently
+          across versions — knowing yours matters.
+        instruction: >
+          Check if git is installed and what version is running:
+          git --version
+          If git is not installed, install it:
+          sudo apt update && sudo apt install git -y
+          Then verify again: git --version
+        hints:
+          - level: 1
+            text: "git --version is the fastest way to confirm installation."
+          - level: 2
+            text: >
+              If the command returns 'git version 2.x.x' you're good.
+              If it returns 'command not found', run the install command.
+          - level: 3
+            text: >
+              sudo apt update && sudo apt install git -y
+              git --version
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-1-a
+              type: exit_code
+              description: "git --version runs successfully"
+              command: "git --version"
+              expected_exit_code: 0
+            - id: check-1-1-b
+              type: regex_output
+              description: "git version is 2.x or higher"
+              command: "git --version"
+              pattern: "git version 2\\."
+        on_success: >
+          Git is installed. Version confirmed. Foundation in place.
+          Now tell git who you are.
+        on_failure: >
+          git not found. Run: sudo apt update && sudo apt install git -y
+          Then run git --version again to confirm.
+
+      - id: task-1-2
+        title: "Configure your git identity"
+        order: 2
+        context: >
+          Every commit you make will be stamped with your name and email.
+          This is how the team knows who made what change, when, and why.
+          Get this wrong and your commits will be anonymous — or worse,
+          attributed to someone else.
+        instruction: >
+          Set your global git identity:
+          git config --global user.name "Your Name"
+          git config --global user.email "your@email.com"
+          Use the email you chose in the decision above.
+          Then verify both are set correctly:
+          git config --global user.name
+          git config --global user.email
+        hints:
+          - level: 1
+            text: >
+              Replace "Your Name" with your actual name and
+              "your@email.com" with your email. Include the quotes.
+          - level: 2
+            text: >
+              git config --global stores settings in ~/.gitconfig
+              You can view the full file with: cat ~/.gitconfig
+          - level: 3
+            text: >
+              git config --global user.name "Jane Smith"
+              git config --global user.email "jane@example.com"
+              git config --list | grep user
+        xp: 30
+        db_save:
+          - field: git_username
+            from: "git config --global user.name"
+          - field: git_email
+            from: "git config --global user.email"
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-2-a
+              type: exit_code
+              description: "user.name is set"
+              command: "git config --global user.name"
+              expected_exit_code: 0
+            - id: check-1-2-b
+              type: regex_output
+              description: "user.name is not empty"
+              command: "git config --global user.name"
+              pattern: "^.{2,}$"
+            - id: check-1-2-c
+              type: regex_output
+              description: "user.email contains @ symbol"
+              command: "git config --global user.email"
+              pattern: ".+@.+"
+        on_success: >
+          Identity set. Every commit from this machine will carry
+          your name and email. Alex can now see exactly who wrote what.
+          That's accountability — and it cuts both ways.
+        on_failure: >
+          Make sure you include the --global flag.
+          Check current config with: git config --list
+
+      - id: task-1-3
+        title: "Set default branch name and editor"
+        order: 3
+        context: >
+          Two more global settings that will save you pain later.
+          The default branch name (main, not master) and your preferred
+          editor for commit messages. Set these once, never think about
+          them again.
+        instruction: >
+          Set the default branch name to main:
+          git config --global init.defaultBranch main
+          Set your preferred editor (choose one):
+          git config --global core.editor "nano"     # beginner friendly
+          git config --global core.editor "vim"      # if you know vim
+          git config --global core.editor "code --wait"  # VS Code
+          Verify your full config:
+          git config --list
+        hints:
+          - level: 1
+            text: >
+              init.defaultBranch main means every new repo you create
+              will start with a branch called main instead of master.
+          - level: 2
+            text: >
+              If you're not sure which editor to pick, use nano.
+              It's the most beginner-friendly terminal editor.
+          - level: 3
+            text: >
+              git config --global init.defaultBranch main
+              git config --global core.editor "nano"
+              git config --list | grep -E "branch|editor"
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-3-a
+              type: regex_output
+              description: "Default branch is set to main"
+              command: "git config --global init.defaultBranch"
+              pattern: "^main$"
+            - id: check-1-3-b
+              type: exit_code
+              description: "core.editor is set"
+              command: "git config --global core.editor"
+              expected_exit_code: 0
+        on_success: >
+          Global config complete. Git knows who you are, what to call
+          your branches, and how to open your editor. You're ready
+          to set up authentication.
+        on_failure: >
+          Check with: git config --list
+          If init.defaultBranch is missing, run the command again
+          without any typos.
+
+  # ---------------------------------------------------------------------------
+  # ACT 2 — Keys to the Kingdom
+  # ---------------------------------------------------------------------------
+  - id: act-2
+    title: "Keys to the Kingdom"
+    order: 2
+
+    narrative: >
+      Git config is done. Alex messages again:
+      "SSH key next. Passwords are dead — GitHub dropped password auth
+      in 2021. Every engineer on this team authenticates via SSH key.
+      Also install gh CLI while you're at it. You'll need it this afternoon."
+      You open your terminal and start with the question every engineer
+      faces on a new machine: is there already a key here?
+
+    decision:
+      prompt: >
+        You run ls -la ~/.ssh/ and find an existing key:
+        id_rsa and id_rsa.pub from about eight months ago.
+        You don't remember what it was for. Do you:
+
+      options:
+        - id: option-d
+          label: "Create a new dedicated ed25519 key for GitHub"
+          description: >
+            Generate a fresh key specifically for GitHub.
+            Name it id_ed25519_github to keep it separate from anything else.
+            Best practice — one key per service.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-2-path-new-key
+          feedback: >
+            Clean approach. ed25519 is more secure than the old RSA key
+            anyway. You now have a dedicated GitHub key that can be
+            rotated independently of anything else. Alex would approve.
+          future_echo: >
+            In the CI/CD module, you'll configure a deploy key for the
+            pipeline. Having named your keys properly now means you
+            won't confuse them then.
+
+        - id: option-e
+          label: "Reuse the existing RSA key"
+          description: >
+            The key exists. It might work. Save time by using it.
+          consequences:
+            morale: 0
+            technical_debt: +15
+          leads_to: act-2-path-reuse-key
+          feedback: >
+            It works — for now. But you don't know what else this key
+            is used for. In Act 4, a push fails unexpectedly because
+            the RSA key was also used by a deploy script Jamie left
+            on the server. You'll spend 20 minutes debugging it during
+            the hotfix window. Technical debt +15.
+          future_echo: >
+            During the hotfix in Act 4, you'll hit an SSH conflict.
+            The root cause will be traced back to this decision.
+
+        - id: option-f
+          label: "Overwrite the existing key with a new one"
+          description: >
+            Generate a new key and save it to the same path,
+            replacing the old one.
+          consequences:
+            morale: -15
+            technical_debt: +30
+          leads_to: act-2-path-overwrite-key
+          feedback: >
+            The old key is gone. Whatever it was used for no longer
+            works. You find out in Act 4 when a legacy deploy script
+            fails silently — the same script that was keeping the
+            payment config backup running. Technical debt +30.
+            Alex is not pleased.
+          future_echo: >
+            In the CI/CD module, a pipeline fails on the deploy step.
+            The error message references an SSH key that no longer exists.
+            You'll know why immediately. That won't make it less painful.
+
+    tasks:
+      - id: task-2-1
+        title: "Check for existing SSH keys"
+        order: 1
+        context: >
+          Before generating anything, know what's already on the machine.
+          This is a habit — never create something without first checking
+          if it already exists. Applies to SSH keys, files, services,
+          everything.
+        instruction: >
+          Check for existing SSH keys:
+          ls -la ~/.ssh/
+          If the directory doesn't exist, that's fine — you'll create
+          a key in the next task. If it does exist, note what's there.
+          Look for files ending in .pub — those are public keys.
+        hints:
+          - level: 1
+            text: "ls -la shows hidden files and full permissions. ~/.ssh/ is a hidden directory."
+          - level: 2
+            text: >
+              Common key filenames: id_rsa, id_ed25519, id_ecdsa.
+              The .pub file is the public key — safe to share.
+              The file without .pub is the private key — never share this.
+          - level: 3
+            text: >
+              ls -la ~/.ssh/ 2>/dev/null || echo "No .ssh directory found"
+              Look for any .pub files in the output.
+        xp: 20
+        verification:
+          strategy: any
+          checks:
+            - id: check-2-1-a
+              type: exit_code
+              description: "ls on .ssh directory runs without error"
+              command: "ls -la ~/.ssh/ 2>/dev/null; true"
+              expected_exit_code: 0
+        on_success: >
+          You know what's on the machine. Now make your decision
+          and proceed with the appropriate key setup.
+        on_failure: >
+          This command should always succeed. If ~/.ssh doesn't exist,
+          that's a valid result — just means no keys yet.
+
+      - id: task-2-2
+        title: "Install and authenticate gh CLI"
+        order: 2
+        context: >
+          The gh CLI is GitHub's official command-line tool. It lets you
+          create repos, manage PRs, configure branch protection, and
+          authenticate — all without leaving the terminal. Alex uses it
+          for everything. You will too.
+        instruction: >
+          Install gh CLI:
+          sudo apt update && sudo apt install gh -y
+          Verify installation:
+          gh --version
+          Then authenticate (this will also handle uploading your
+          SSH key to GitHub):
+          gh auth login
+          When prompted:
+          - Select: GitHub.com
+          - Select: SSH
+          - Select your SSH key (or generate one if prompted)
+          - Select: Login with a web browser
+          - Follow the device flow to authenticate
+        hints:
+          - level: 1
+            text: >
+              gh auth login is interactive — it will walk you through
+              each step with prompts. Read each prompt carefully.
+          - level: 2
+            text: >
+              When gh asks which SSH key to use, select the one you
+              just created (or chose to reuse). It will upload the
+              public key to GitHub automatically.
+          - level: 3
+            text: >
+              If the browser flow fails, use: gh auth login --web
+              Or use a Personal Access Token: gh auth login --with-token
+              GUI alternative: GitHub → Settings → SSH and GPG Keys →
+              New SSH Key → paste contents of your .pub file
+        xp: 60
+        db_save:
+          - field: github_username
+            from: "gh api user --jq '.login'"
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-2-a
+              type: exit_code
+              description: "gh CLI is installed"
+              command: "gh --version"
+              expected_exit_code: 0
+            - id: check-2-2-b
+              type: exit_code
+              description: "gh auth status succeeds"
+              command: "gh auth status"
+              expected_exit_code: 0
+            - id: check-2-2-c
+              type: regex_output
+              description: "gh auth shows logged in status"
+              command: "gh auth status"
+              pattern: "Logged in to github.com"
+        on_success: >
+          gh CLI installed and authenticated. GitHub now knows who you
+          are from this machine. Your SSH key is uploaded and linked
+          to your account.
+        on_failure: >
+          If gh install fails: sudo apt-get install gh
+          If auth fails: gh auth logout then gh auth login again
+          Check status with: gh auth status
+
+      - id: task-2-3
+        title: "Verify SSH connection to GitHub"
+        order: 3
+        context: >
+          gh auth login handles the key upload but it's always worth
+          verifying the SSH connection independently. This is the
+          definitive test — if this works, git push via SSH will work.
+        instruction: >
+          Test your SSH connection to GitHub directly:
+          ssh -T git@github.com
+          Expected response:
+          "Hi username! You've successfully authenticated,
+          but GitHub does not provide shell access."
+          That message means it's working perfectly.
+          Also verify gh CLI auth state:
+          gh auth status
+        hints:
+          - level: 1
+            text: >
+              The 'does not provide shell access' message is correct
+              and expected. GitHub doesn't give you a shell — it just
+              confirms your key is valid.
+          - level: 2
+            text: >
+              If you get 'Permission denied (publickey)' it means
+              your key wasn't uploaded correctly. Run gh auth login again.
+          - level: 3
+            text: >
+              ssh -T git@github.com
+              If it asks about host authenticity, type: yes
+              You should see the 'Hi username!' response.
+              GUI verification: GitHub → Settings → SSH Keys →
+              your key should show 'Last used: just now'
+        xp: 30
+        db_save:
+          - field: github_ssh_verified
+            value: true
+          - field: ssh_key_path
+            from: "ls ~/.ssh/*.pub | head -1"
+          - field: ssh_key_type
+            from: "ssh-keygen -l -f ~/.ssh/*.pub 2>/dev/null | awk '{print $4}' | head -1"
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-3-a
+              type: regex_output
+              description: "SSH connection to GitHub succeeds"
+              command: "ssh -T git@github.com 2>&1 || true"
+              pattern: "successfully authenticated"
+            - id: check-2-3-b
+              type: exit_code
+              description: "gh auth status exits cleanly"
+              command: "gh auth status"
+              expected_exit_code: 0
+        on_success: >
+          SSH verified. GitHub confirmed your identity.
+          This machine is now a trusted git client.
+          Jordan just messaged: "Hey! Alex told me to ping you.
+          Ready to pair on the config fix later?"
+          Almost there. One more step — the repo.
+        on_failure: >
+          Permission denied? Your key isn't on GitHub yet.
+          Run: gh auth login and select your SSH key when prompted.
+          Or add manually: cat ~/.ssh/id_ed25519.pub
+          Then paste into: GitHub → Settings → SSH and GPG Keys
+
+  # ---------------------------------------------------------------------------
+  # ACT 3 — Build the Repo
+  # ---------------------------------------------------------------------------
+  - id: act-3
+    title: "Build the Repo"
+    order: 3
+
+    narrative: >
+      SSH is live. Alex's final setup message arrives:
+      "Create your repo. Public or private — your call, think about it.
+      Branch protection from day one. No direct pushes to main.
+      Use rulesets, not classic protection rules — we're not in 2019.
+      And name it prodops-chronicles. That's where your work lives from now on."
+      You open your terminal. This repo isn't just for the hotfix —
+      it's where your entire ProdOps Chronicles journey will be tracked.
+      Set it up like it matters. Because it does.
+
+    decision:
+      prompt: >
+        Alex said the visibility is your call.
+        Public or private?
+
+      options:
+        - id: option-g
+          label: "Public — own your work"
+          description: >
+            Anyone can see your repo. Your progress, your commits,
+            your decisions. Contributes to your GitHub profile and
+            enables community stats in ProdOps Chronicles.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-3-tasks
+          feedback: >
+            Alex replies: "Good. Own your work. Nothing to hide in
+            a learning repo." Your repo will feed into ProdOps
+            community stats (with your consent in Act 5).
+            Your GitHub profile just got more interesting.
+          future_echo: >
+            In Act 5, the telemetry consent moment will reference
+            this decision. Public repo + opt-in telemetry = Tier 3
+            community contribution.
+
+        - id: option-h
+          label: "Private — your progress stays yours"
+          description: >
+            Only you can see the repo. No external visibility.
+            Progress is tracked locally and synced privately.
+          consequences:
+            morale: 0
+            technical_debt: 0
+          leads_to: act-3-tasks
+          feedback: >
+            Priya messages: "Smart call. Some orgs require private
+            repos for anything work-adjacent. Good instinct."
+            Your progress syncs privately. Community stats will
+            only include anonymous telemetry if you opt in later.
+          future_echo: >
+            In Act 5, telemetry consent defaults to Tier 1 (private only).
+            You can always change this later with prodops config set.
+
+        - id: option-i
+          label: "Public now, maybe private later"
+          description: >
+            Start public, see how it feels. Change visibility later if needed.
+          consequences:
+            morale: 0
+            technical_debt: +10
+          leads_to: act-3-tasks
+          feedback: >
+            Technically fine. But changing repo visibility mid-project
+            has implications — forks, cached content, search indexing.
+            Technical debt +10. It's a decision that's easier to make
+            once than to unmake. Alex says nothing. That's the feedback.
+          future_echo: >
+            In Act 5, you'll be reminded that this decision is worth
+            revisiting. The platform will surface it during the
+            telemetry consent moment.
+
+    tasks:
+      - id: task-3-1
+        title: "Create the prodops-chronicles repo"
+        order: 1
+        context: >
+          This is the repo that will hold your work for all of
+          ProdOps Chronicles. Every module, every incident fix,
+          every post-mortem — it all lives here. Set it up with
+          the gh CLI, clone it locally, and make your first commit.
+        instruction: >
+          Create the repo using gh CLI:
+          gh repo create prodops-chronicles --public --clone
+          (or --private if you chose that)
+          Navigate into it:
+          cd prodops-chronicles
+          Create a README:
+          echo "# ProdOps Chronicles" > README.md
+          echo "My DevOps learning journey at Finstack." >> README.md
+          Make your first commit:
+          git add README.md
+          git commit -m "docs: initial commit — prodops chronicles"
+          git push origin main
+        hints:
+          - level: 1
+            text: >
+              gh repo create handles everything — creates on GitHub
+              and clones locally in one command.
+          - level: 2
+            text: >
+              The --clone flag automatically clones the repo after
+              creating it. No need to run git clone separately.
+          - level: 3
+            text: >
+              gh repo create prodops-chronicles --public --clone
+              cd prodops-chronicles
+              echo "# ProdOps Chronicles" > README.md
+              git add . && git commit -m "docs: initial commit — prodops chronicles"
+              git push origin main
+              GUI: github.com → New Repository → prodops-chronicles
+        xp: 50
+        db_save:
+          - field: prodops_sync_remote
+            from: "git remote get-url origin"
+          - field: default_branch_name
+            value: "main"
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-1-a
+              type: exit_code
+              description: "repo exists on GitHub"
+              command: "gh repo view prodops-chronicles"
+              expected_exit_code: 0
+            - id: check-3-1-b
+              type: exit_code
+              description: "local repo has at least one commit"
+              command: "git -C ~/prodops-chronicles log --oneline | head -1"
+              expected_exit_code: 0
+            - id: check-3-1-c
+              type: regex_output
+              description: "README.md exists in repo"
+              command: "ls ~/prodops-chronicles/"
+              pattern: "README.md"
+        on_success: >
+          Repo created. First commit pushed. Your GitHub profile just
+          got its first green square from ProdOps Chronicles.
+          Now protect it.
+        on_failure: >
+          If gh repo create fails: check gh auth status first.
+          If push fails: check git remote -v and ssh -T git@github.com
+
+      - id: task-3-2
+        title: "Set up branch protection — rulesets"
+        order: 2
+        context: >
+          Branch protection is what stops engineers (including you,
+          including Jordan, and in spirit, Jamie) from pushing directly
+          to main. Rulesets are the modern way — more powerful than
+          classic branch protection rules, and they have an Evaluate
+          mode for testing before enforcing.
+        instruction: >
+          Create a ruleset via gh CLI that blocks direct pushes to main
+          and requires a PR with at least one approval:
+          gh api repos/{owner}/prodops-chronicles/rulesets \
+            --method POST \
+            --field name="protect-main" \
+            --field target="branch" \
+            --field enforcement="active" \
+            --field '{"conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}}}' \
+            --field '{"rules":[{"type":"deletion"},{"type":"non_fast_forward"},{"type":"pull_request","parameters":{"required_approving_review_count":1,"dismiss_stale_reviews_on_push":true}}]}'
+          Verify the ruleset is active:
+          gh api repos/{owner}/prodops-chronicles/rulesets
+          Replace {owner} with your GitHub username.
+        hints:
+          - level: 1
+            text: >
+              Rulesets live at the repo level. The gh api command sends
+              a direct API request to GitHub. --method POST creates a new one.
+          - level: 2
+            text: >
+              enforcement: active means it's live immediately.
+              enforcement: evaluate is dry-run mode — use this to test
+              before making it active. Try evaluate first if you're unsure.
+          - level: 3
+            text: >
+              Replace {owner} with your actual GitHub username.
+              After creating, verify with:
+              gh api repos/{owner}/prodops-chronicles/rulesets | jq '.[] | .name'
+              GUI: GitHub → repo → Settings → Rules → Rulesets → New ruleset
+              → Add rule: Require a pull request before merging
+              → Required approvals: 1
+              → Target: Default branch
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-2-a
+              type: exit_code
+              description: "rulesets API returns successfully"
+              command: "gh api repos/$(gh api user --jq '.login')/prodops-chronicles/rulesets"
+              expected_exit_code: 0
+            - id: check-3-2-b
+              type: regex_output
+              description: "at least one ruleset exists"
+              command: "gh api repos/$(gh api user --jq '.login')/prodops-chronicles/rulesets"
+              pattern: "protect-main"
+        on_success: >
+          Branch protection is live. Try pushing directly to main right
+          now — it'll be blocked. That's the point.
+          Jordan messages: "Hey just cloned your repo. Looks clean.
+          Ready when you are for the config fix."
+          It's 1:30 PM. Time for the hotfix.
+        on_failure: >
+          If the API call fails, check: gh auth status
+          Make sure you replaced {owner} with your GitHub username.
+          Try the GUI approach: GitHub → repo → Settings → Rules → Rulesets
+
+  # ---------------------------------------------------------------------------
+  # ACT 4 — The Hotfix
+  # ---------------------------------------------------------------------------
+  - id: act-4
+    title: "The Hotfix"
+    order: 4
+
+    narrative: >
+      2:05 PM. Priya's message arrives:
+      "Payment dashboard showing wrong totals on transactions above £10k.
+      Traced to a decimal precision setting in config/payment.cfg.
+      There's also a rate limit value in config/limits.cfg that needs
+      updating — Jordan has context on that one. Deployment window closes
+      at 4:30 PM. Alex is still in the all-hands."
+      You and Jordan split the work over Slack. You'll take payment.cfg.
+      Jordan takes limits.cfg. You'll both push to the same repo.
+      Your branch protection rules are about to prove their worth.
+
+    decision:
+      prompt: >
+        You've made your fix to config/payment.cfg and you're ready
+        to commit. How do you write the commit message?
+
+      options:
+        - id: option-j
+          label: "Conventional commit: fix: correct decimal precision in payment config"
+          description: >
+            Follow the conventional commits standard. Type prefix,
+            short description, clear scope. Professional and parseable.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-4-tasks
+          feedback: >
+            When Alex reviews the PR, the commit message is the first
+            thing he sees. "Good." That's all he says. Coming from Alex,
+            that's a standing ovation.
+          future_echo: >
+            In Act 5, git log --oneline shows a clean, readable history.
+            Priya sees it during the post-mortem and adds it to the
+            team runbook as an example of good commit hygiene.
+
+        - id: option-k
+          label: "Vague: fixed it"
+          description: >
+            Quick and done. The code change speaks for itself, right?
+          consequences:
+            morale: -15
+            technical_debt: +20
+          leads_to: act-4-tasks
+          feedback: >
+            Alex reviews the PR: "What did you fix? For what? Why?
+            This commit message tells me nothing. In six months nobody
+            will know what this change was for. Rewrite it."
+            You amend the commit during the review window.
+            Costs 15 minutes. Technical debt +20.
+          future_echo: >
+            In Act 5 post-mortem, Priya asks you to walk through the
+            git log. You spend five minutes explaining what "fixed it"
+            actually means. She writes a note.
+
+        - id: option-l
+          label: "Over-detailed paragraph message"
+          description: >
+            Write a full explanation in the commit message — every
+            decision, every alternative considered, full context.
+          consequences:
+            morale: -5
+            technical_debt: +10
+          leads_to: act-4-tasks
+          feedback: >
+            Alex: "Commit messages aren't essays. First line: what and why,
+            under 72 characters. Body: optional context if truly needed.
+            You wrote a short story. Edit it." Technical debt +10.
+            There's a convention. Learn it.
+          future_echo: >
+            In the CI/CD module, a commit message parser in the pipeline
+            rejects your message format. You'll remember this moment.
+
+    tasks:
+      - id: task-4-1
+        title: "Create a hotfix branch"
+        order: 1
+        context: >
+          Never work directly on main. Never. Even for a one-line fix.
+          Especially for a one-line fix — those are the ones that break
+          things. Create a branch, make your change, open a PR. Every time.
+        instruction: >
+          Navigate to your repo and create a hotfix branch:
+          cd ~/prodops-chronicles
+          git checkout -b hotfix/payment-config
+          Verify you're on the new branch:
+          git branch
+          The asterisk shows your current branch.
+        hints:
+          - level: 1
+            text: "git checkout -b creates a new branch and switches to it in one command."
+          - level: 2
+            text: >
+              Branch naming convention: type/description
+              hotfix/ for urgent fixes, feat/ for features, docs/ for documentation.
+          - level: 3
+            text: >
+              git checkout -b hotfix/payment-config
+              git branch
+              You should see: * hotfix/payment-config
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-1-a
+              type: regex_output
+              description: "currently on hotfix branch"
+              command: "git -C ~/prodops-chronicles branch --show-current"
+              pattern: "hotfix/payment-config"
+        on_success: >
+          Branch created. You're isolated from main.
+          Whatever you do here won't affect anyone until you open a PR.
+          That's the point.
+        on_failure: >
+          Make sure you're inside the repo: cd ~/prodops-chronicles
+          Then: git checkout -b hotfix/payment-config
+
+      - id: task-4-2
+        title: "Make and commit the fix"
+        order: 2
+        context: >
+          The payment config file needs a decimal precision correction.
+          The current value is causing rounding errors on transactions
+          above £10k. Fix it, stage it, commit it with a proper message.
+        instruction: >
+          Create the config file with the fix applied:
+          mkdir -p config
+          cat > config/payment.cfg << 'EOF'
+          # Payment Processing Configuration
+          # Last updated: hotfix/payment-config
+          decimal_precision=4
+          currency=GBP
+          max_transaction=50000
+          EOF
+          Stage and commit using the message style you chose:
+          git add config/payment.cfg
+          git commit -m "fix: correct decimal precision in payment config"
+          Push to your branch:
+          git push origin hotfix/payment-config
+        hints:
+          - level: 1
+            text: "git add stages changes. git commit records them. git push shares them."
+          - level: 2
+            text: >
+              git add config/payment.cfg stages only that file.
+              git add . stages everything. Be intentional about what you stage.
+          - level: 3
+            text: >
+              mkdir -p config
+              echo "decimal_precision=4" > config/payment.cfg
+              git add config/payment.cfg
+              git commit -m "fix: correct decimal precision in payment config"
+              git push origin hotfix/payment-config
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-2-a
+              type: file_match
+              description: "payment.cfg exists"
+              path: "~/prodops-chronicles/config/payment.cfg"
+              match_type: exists
+              expected: null
+            - id: check-4-2-b
+              type: file_match
+              description: "decimal_precision is set to 4"
+              path: "~/prodops-chronicles/config/payment.cfg"
+              match_type: contains
+              expected: "decimal_precision=4"
+            - id: check-4-2-c
+              type: exit_code
+              description: "branch pushed to remote"
+              command: "git -C ~/prodops-chronicles ls-remote origin hotfix/payment-config"
+              expected_exit_code: 0
+        on_success: >
+          Fix committed and pushed. Branch is on GitHub.
+          Jordan messages: "I've pushed my limits.cfg changes too.
+          Just opened a PR. Heads up — we both touched limits.cfg.
+          There's a conflict."
+        on_failure: >
+          Check git status for unstaged changes.
+          Check git log --oneline to confirm the commit was made.
+          Check git push output for authentication errors.
+
+      - id: task-4-3
+        title: "Open a pull request"
+        order: 3
+        context: >
+          Your code is on GitHub. Now request that it be merged to main
+          via a pull request. This is how code review works — you don't
+          merge your own changes without someone else looking at them.
+          Even on a small team. Especially on a small team.
+        instruction: >
+          Create a PR using gh CLI:
+          gh pr create \
+            --title "fix: correct decimal precision in payment config" \
+            --body "## What\nCorrects decimal_precision from 2 to 4 in payment.cfg.\n\n## Why\nTransactions above £10k were rounding incorrectly due to insufficient decimal places.\n\n## Testing\nConfig value verified. Deployment window: before 4:30 PM." \
+            --base main \
+            --head hotfix/payment-config
+          View the PR:
+          gh pr view
+        hints:
+          - level: 1
+            text: "gh pr create opens a PR from your current branch to main."
+          - level: 2
+            text: >
+              A good PR description answers: What changed? Why? How was it tested?
+              The --body flag accepts markdown formatting.
+          - level: 3
+            text: >
+              gh pr create --title "fix: payment decimal precision" --body "Fixes rounding on transactions > £10k" --base main
+              GUI: GitHub → repo → Pull Requests → New Pull Request
+              → Select hotfix/payment-config → main
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-3-a
+              type: exit_code
+              description: "PR exists on GitHub"
+              command: "gh pr list --head hotfix/payment-config"
+              expected_exit_code: 0
+            - id: check-4-3-b
+              type: regex_output
+              description: "PR targets main branch"
+              command: "gh pr view --json baseRefName --jq '.baseRefName'"
+              pattern: "^main$"
+        on_success: >
+          PR open. Branch protection is working — you can't merge
+          without a review. Now deal with Jordan's conflict.
+        on_failure: >
+          Make sure your branch is pushed: git push origin hotfix/payment-config
+          Then try: gh pr create again
+
+      - id: task-4-4
+        title: "Resolve the merge conflict"
+        order: 4
+        context: >
+          Jordan's PR touched config/limits.cfg. So did yours.
+          The same line. Git can't decide which version to keep —
+          that's a human decision. Pull their changes, read both
+          versions carefully, combine what's correct, resolve the conflict.
+        instruction: >
+          Fetch the latest changes from main:
+          git fetch origin
+          Merge main into your branch to surface the conflict:
+          git merge origin/main
+          Git will report a conflict in config/limits.cfg.
+          Open the file and look for conflict markers:
+            <<<<<<< HEAD
+            your version
+            =======
+            Jordan's version
+            >>>>>>> origin/main
+          Read both versions. Keep the correct parts from each.
+          Remove ALL conflict markers (<<<, ===, >>>).
+          Then stage and commit the resolution:
+          git add config/limits.cfg
+          git commit -m "fix: resolve merge conflict in limits.cfg — preserve both rate limit updates"
+          git push origin hotfix/payment-config
+        hints:
+          - level: 1
+            text: >
+              Conflict markers are not code. Remove all three lines
+              (<<<, ===, >>>) and leave only the final correct content.
+          - level: 2
+            text: >
+              Read Jordan's change carefully before discarding it.
+              In this case, both changes are valid — yours updates
+              one rate limit, Jordan's updates another. Keep both.
+          - level: 3
+            text: >
+              After opening the file, it should look like:
+              <<<<<<< HEAD
+              rate_limit_standard=1000
+              =======
+              rate_limit_premium=5000
+              >>>>>>> origin/main
+              Correct resolution:
+              rate_limit_standard=1000
+              rate_limit_premium=5000
+              Then: git add config/limits.cfg
+              git commit -m "fix: resolve merge conflict in limits.cfg"
+        xp: 100
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-4-a
+              type: exit_code
+              description: "no conflict markers remain in limits.cfg"
+              command: "grep -c '<<<<<<<' ~/prodops-chronicles/config/limits.cfg 2>/dev/null || echo 0"
+              expected_exit_code: 0
+            - id: check-4-4-b
+              type: regex_output
+              description: "conflict marker count is zero"
+              command: "grep -c '<<<<<<<' ~/prodops-chronicles/config/limits.cfg 2>/dev/null || echo 0"
+              pattern: "^0$"
+            - id: check-4-4-c
+              type: file_match
+              description: "limits.cfg contains both rate limit values"
+              path: "~/prodops-chronicles/config/limits.cfg"
+              match_type: contains
+              expected: "rate_limit_standard"
+        on_success: >
+          Conflict resolved. Both rate limit updates preserved.
+          Jordan messages: "Nice — you kept my change. Thanks for not
+          just nuking it." Alex approves the PR from the all-hands.
+          "LGTM. Merge it."
+        on_failure: >
+          If conflict markers still exist: open the file and manually
+          remove all lines starting with <<<<<<<, =======, >>>>>>>
+          Then save, git add, git commit, git push.
+
+      - id: task-4-5
+        title: "Merge the PR and clean up"
+        order: 5
+        context: >
+          PR approved. Time to merge and clean up. Squash merge keeps
+          the main branch history clean — one logical change, one commit.
+          Then delete the hotfix branch. Dead branches are clutter.
+        instruction: >
+          Merge the PR with squash:
+          gh pr merge --squash --delete-branch
+          Switch back to main and pull the latest:
+          git checkout main
+          git pull origin main
+          Verify the merge:
+          git log --oneline -5
+          Confirm the hotfix branch is gone:
+          git branch -a | grep hotfix
+        hints:
+          - level: 1
+            text: "--squash combines all your branch commits into one clean commit on main."
+          - level: 2
+            text: >
+              --delete-branch removes the remote branch after merge.
+              Also delete locally: git branch -d hotfix/payment-config
+          - level: 3
+            text: >
+              gh pr merge --squash --delete-branch
+              git checkout main
+              git pull origin main
+              git log --oneline -5
+              git branch -d hotfix/payment-config 2>/dev/null || true
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-5-a
+              type: exit_code
+              description: "PR is merged"
+              command: "gh pr list --state merged --head hotfix/payment-config"
+              expected_exit_code: 0
+            - id: check-4-5-b
+              type: regex_output
+              description: "currently on main branch"
+              command: "git -C ~/prodops-chronicles branch --show-current"
+              pattern: "^main$"
+        on_success: >
+          Merged. Clean. The payment dashboard fix is live.
+          Priya messages at 3:47 PM: "Dashboard is showing correct totals.
+          Good work, both of you. 4:30 window with time to spare."
+          Jordan: "Good collab. That conflict resolve was clean."
+          One thing left — document this properly.
+        on_failure: >
+          If merge fails: check PR status with gh pr view
+          If branch delete fails: git branch -d hotfix/payment-config
+          Make sure you're on main: git checkout main
+
+  # ---------------------------------------------------------------------------
+  # ACT 5 — Leave it Better
+  # ---------------------------------------------------------------------------
+  - id: act-5
+    title: "Leave it Better"
+    order: 5
+
+    narrative: >
+      4:02 PM. The fix is live. The team is relieved.
+      But there are three things left to do — and all three matter.
+      Document what happened. Decide what you share with the world.
+      Sync your progress so today's work isn't lost.
+      Alex messages: "Good day. Don't forget the post-mortem.
+      And sort your prodops sync before you log off."
+
+    decision:
+      prompt: >
+        Priya asks for an incident report for the compliance record.
+        How thorough do you go?
+
+      options:
+        - id: option-m
+          label: "Full post-mortem — timeline, root cause, impact, fix, prevention"
+          description: >
+            Write a complete incident document. Takes 20 minutes.
+            Answers every question anyone could ask about this incident.
+          consequences:
+            morale: +20
+            technical_debt: -15
+          leads_to: act-5-tasks
+          feedback: >
+            Priya reads it before EOD: "This is exactly what I needed.
+            Forwarding to compliance." Alex adds it to the team runbook.
+            Jordan asks if they can use your template. This document
+            will be referenced in future modules.
+          future_echo: >
+            In the Bash module, your monitoring script references
+            INCIDENT-001.md as the context for why it was built.
+            In the CI/CD module, the pipeline has a docs/ check
+            because of this post-mortem.
+
+        - id: option-n
+          label: "Brief summary — what broke, what you did"
+          description: >
+            Covers the basics. Not exhaustive but not nothing.
+          consequences:
+            morale: +5
+            technical_debt: 0
+          leads_to: act-5-tasks
+          feedback: >
+            Priya: "Thanks. Can you add the prevention section when
+            you have a moment?" It's fine. Not exceptional. The kind
+            of doc that answers today's questions but not tomorrow's.
+          future_echo: >
+            The doc exists but is incomplete. Future modules will
+            reference it but note the gap.
+
+        - id: option-o
+          label: "Skip it — the fix speaks for itself"
+          description: >
+            The PR is merged. The dashboard works. What more is there to say?
+          consequences:
+            morale: -20
+            technical_debt: +25
+          leads_to: act-5-tasks
+          feedback: >
+            Priya: "I need something for compliance. Can you write
+            something up?" You scramble at 4:25 PM to write from
+            memory. Details are fuzzy. The document is thin.
+            Alex sees it: "This is not a post-mortem. This is a tweet."
+            Technical debt +25. This goes on your performance record.
+          future_echo: >
+            In the CI/CD module, the same config issue recurs because
+            nobody documented the root cause. You'll recognise it
+            immediately. That won't feel good.
+
+    tasks:
+      - id: task-5-1
+        title: "Write the incident post-mortem"
+        order: 1
+        context: >
+          A post-mortem isn't blame. It's a structured record of what
+          happened, why it happened, and what prevents it happening again.
+          Good teams write them for every incident, no matter how small.
+          This one goes in your repo — version controlled, permanently.
+        instruction: >
+          Create the docs directory and write the post-mortem:
+          mkdir -p ~/prodops-chronicles/docs
+          Create ~/prodops-chronicles/docs/INCIDENT-001.md with this structure:
+          # INCIDENT-001 — Payment Dashboard Decimal Precision
+          ## Date
+          [today's date]
+          ## Severity
+          P2 — customer-facing display error
+          ## Timeline
+          - [time]: Issue reported by Priya
+          - [time]: Root cause identified in payment.cfg
+          - [time]: Hotfix branch created
+          - [time]: PR opened and reviewed
+          - [time]: Merged and deployed
+          ## Root Cause
+          decimal_precision set to 2 in payment.cfg causing rounding
+          errors on transactions > £10k.
+          ## Impact
+          Payment totals displayed incorrectly to customers.
+          Audit logs unaffected. No financial loss.
+          ## Fix Applied
+          decimal_precision updated to 4 in payment.cfg via PR #[number].
+          ## Prevention
+          Add config validation to deployment pipeline.
+          Document all payment config values with acceptable ranges.
+          Then commit and push:
+          git add docs/INCIDENT-001.md
+          git commit -m "docs: add incident-001 post-mortem"
+          git push origin main
+        hints:
+          - level: 1
+            text: >
+              You can't push directly to main — branch protection is on.
+              Create a branch: git checkout -b docs/incident-001
+              Then push, open a PR, merge.
+          - level: 2
+            text: >
+              Wait — branch protection means you need a PR even for docs.
+              That's the point. Even documentation changes go through review.
+              git checkout -b docs/incident-001
+              [create the file]
+              git add . && git commit -m "docs: add incident-001 post-mortem"
+              git push origin docs/incident-001
+              gh pr create --title "docs: incident-001 post-mortem" --base main
+              gh pr merge --squash --delete-branch
+          - level: 3
+            text: >
+              Full flow:
+              git checkout -b docs/incident-001
+              mkdir -p docs && nano docs/INCIDENT-001.md
+              git add docs/INCIDENT-001.md
+              git commit -m "docs: add incident-001 post-mortem"
+              git push origin docs/incident-001
+              gh pr create --title "docs: incident-001 post-mortem" --base main --body "Post-mortem for payment config incident"
+              gh pr merge --squash --delete-branch
+              git checkout main && git pull
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-5-1-a
+              type: file_match
+              description: "INCIDENT-001.md exists"
+              path: "~/prodops-chronicles/docs/INCIDENT-001.md"
+              match_type: exists
+              expected: null
+            - id: check-5-1-b
+              type: file_match
+              description: "post-mortem contains root cause section"
+              path: "~/prodops-chronicles/docs/INCIDENT-001.md"
+              match_type: contains
+              expected: "Root Cause"
+            - id: check-5-1-c
+              type: file_match
+              description: "post-mortem contains prevention section"
+              path: "~/prodops-chronicles/docs/INCIDENT-001.md"
+              match_type: contains
+              expected: "Prevention"
+        on_success: >
+          Document committed. Priya has what she needs for compliance.
+          Alex adds it to the team runbook.
+          Jordan: "That template is really clean. Saving it."
+          One more thing — clean up the branches, then sync.
+        on_failure: >
+          Make sure docs/ directory exists: mkdir -p docs
+          Remember: you can't push directly to main.
+          Create a branch first, then PR.
+
+      - id: task-5-2
+        title: "Clean up branches and review git log"
+        order: 2
+        context: >
+          A clean repo is a maintained repo. Delete branches that have
+          been merged. Review the commit history — this is the story
+          of today's work, told in git.
+        instruction: >
+          Delete any remaining local branches (hotfix should already be gone):
+          git branch -d hotfix/payment-config 2>/dev/null || echo "already deleted"
+          git branch -d docs/incident-001 2>/dev/null || echo "already deleted"
+          View the clean commit history:
+          git log --oneline
+          Appreciate what you built today — in commit form.
+        hints:
+          - level: 1
+            text: "-d deletes a merged branch safely. -D force-deletes regardless of merge status."
+          - level: 2
+            text: >
+              git log --oneline shows one line per commit.
+              git log --oneline --graph shows branch topology.
+          - level: 3
+            text: >
+              git branch -d hotfix/payment-config
+              git branch -d docs/incident-001
+              git log --oneline
+              You should see: initial commit, fix, docs — clean history.
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-5-2-a
+              type: regex_output
+              description: "no stale local branches remain"
+              command: "git -C ~/prodops-chronicles branch | grep -v main | wc -l"
+              pattern: "^0$"
+            - id: check-5-2-b
+              type: exit_code
+              description: "git log runs successfully"
+              command: "git -C ~/prodops-chronicles log --oneline"
+              expected_exit_code: 0
+        on_success: >
+          Clean. Tidy. Professional.
+          git log tells the story of today without ambiguity.
+          If someone joins this team tomorrow, they'll know exactly
+          what happened — just from the commit history.
+          Now the last thing. The important one.
+        on_failure: >
+          If branch delete fails with 'not found' — it's already deleted.
+          That's fine. Run git log --oneline to verify history.
+
+      - id: task-5-3
+        title: "Telemetry consent — your data, your choice"
+        order: 3
+        context: >
+          Before you sync your progress, the platform needs to ask
+          you something. Alex explains it directly — no small print,
+          no buried checkboxes. This is the moment you decide what
+          you share with the ProdOps Chronicles community.
+        instruction: >
+          Read Alex's message carefully, then set your preference:
+
+          Alex: "Before you sync — ProdOps Chronicles can optionally
+          collect anonymous stats about how players progress through
+          modules. Things like which decisions lead to better outcomes,
+          where people get stuck, what the common mistakes are. This
+          makes the platform better for everyone who comes after you.
+          But it's your data. Three options:
+
+          Tier 1 — Private (default): Nothing leaves your machine.
+          Tier 2 — Anonymous telemetry: Stripped anonymous snapshots only.
+                   No credentials, no PII. Just decision paths and scores.
+          Tier 3 — Public repo + anonymous telemetry: Full community
+                   contribution. Your repo is indexed publicly.
+
+          Every tool you'll use in your career will ask for your data
+          at some point. The good ones tell you exactly what they take
+          and why. The bad ones bury it. We try to be one of the good ones.
+          Your call."
+
+          Set your preference:
+          prodops config set telemetry.enabled=false   # Tier 1
+          prodops config set telemetry.enabled=true    # Tier 2
+          prodops config set telemetry.level=community # Tier 3
+          You can always change this:
+          prodops config get telemetry
+        hints:
+          - level: 1
+            text: "There is no wrong answer here. All three tiers are equally valid."
+          - level: 2
+            text: >
+              Tier 1: maximum privacy, minimum community contribution.
+              Tier 2: anonymous contribution, no personal data shared.
+              Tier 3: maximum contribution, requires public repo (set in Act 3).
+          - level: 3
+            text: >
+              If you chose a private repo in Act 3, Tier 3 isn't available
+              until you change visibility: gh repo edit prodops-chronicles --visibility public
+              You can change your telemetry setting any time:
+              prodops config set telemetry.enabled=true
+        xp: 10
+        db_save:
+          - field: telemetry_consent_level
+            from: "prodops config get telemetry.level"
+        verification:
+          strategy: any
+          checks:
+            - id: check-5-3-a
+              type: exit_code
+              description: "telemetry config is set"
+              command: "prodops config get telemetry.enabled"
+              expected_exit_code: 0
+        on_success: >
+          Preference saved. Respected. Always changeable.
+          Alex: "Good. That's how it should work."
+          One last command.
+        on_failure: >
+          Any of the three prodops config set commands will pass this check.
+          Make sure you've run at least one of them.
+
+      - id: task-5-4
+        title: "prodops sync — your first progress sync"
+        order: 4
+        context: >
+          Everything you've done today — the git setup, the SSH keys,
+          the branch protection, the hotfix, the post-mortem — is
+          about to be committed to your progress repo on GitHub.
+          Version controlled. Permanently. This is the moment the
+          platform and your learning journey become one thing.
+        instruction: >
+          Run your first prodops sync:
+          prodops sync
+          The platform will:
+          1. Export your progress snapshot (decisions, scores, XP)
+          2. Commit it to ~/prodops-chronicles/.prodops/progress/
+          3. Push to your configured remote (prodops_sync_remote from DB)
+          Watch the output. Then verify on GitHub:
+          gh repo view prodops-chronicles --web
+          Navigate to .prodops/progress/ in your repo.
+          Your journey is now version controlled.
+        hints:
+          - level: 1
+            text: >
+              prodops sync uses the SSH key and remote URL you set up
+              in Acts 2 and 3. If it fails, check: gh auth status
+          - level: 2
+            text: >
+              The .prodops/ directory in your repo is managed by the
+              platform. Don't edit it manually. Do look at it — it's
+              your progress in structured form.
+          - level: 3
+            text: >
+              If sync fails: prodops status to check platform health
+              prodops config get to verify remote is set
+              gh auth status to verify GitHub authentication
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-5-4-a
+              type: exit_code
+              description: "prodops sync runs successfully"
+              command: "prodops sync"
+              expected_exit_code: 0
+            - id: check-5-4-b
+              type: file_match
+              description: "progress snapshot exists in repo"
+              path: "~/prodops-chronicles/.prodops/progress/"
+              match_type: exists
+              expected: null
+        on_success: >
+          Synced.
+
+          Your terminal shows:
+          "Progress synced to github.com/[username]/prodops-chronicles"
+          "Your journey is now version controlled."
+          "Everything you learn from here is in your git history."
+
+          You open GitHub. The .prodops/progress/ directory is there.
+          The repo you spent this morning setting up — the one with
+          branch protection, SSH auth, and conventional commits —
+          is now tracking your own learning. The tools you learned
+          are running on the thing that records your learning.
+
+          Alex's final message of the day:
+          "Good work. Properly set up from day one.
+          Jamie never did any of this. That's why we're still
+          finding their mess six months later.
+          You're not Jamie."
+
+          That's the best thing Alex has said to anyone all week.
+        on_failure: >
+          Check prodops status for platform health.
+          Check prodops config get to verify sync remote is set.
+          Check gh auth status for GitHub authentication.
+          Check ssh -T git@github.com for SSH connectivity.
+
+# -----------------------------------------------------------------------------
+# 4. BRANCH ACTS
+# -----------------------------------------------------------------------------
+branch_acts:
+
+  - id: act-2-path-new-key
+    title: "Clean Slate"
+    order: 2
+    branch_of: act-2
+    branch_option: option-d
+
+    narrative: >
+      You're generating a new, dedicated key for GitHub.
+      ed25519 — faster, more secure, and smaller than RSA.
+      One key per service. Clean, traceable, independently revocable.
+      This is how security-conscious engineers manage credentials.
+
+    tasks:
+      - id: task-2a-1
+        title: "Generate a new ed25519 SSH key"
+        order: 1
+        context: >
+          You're creating a dedicated GitHub key. Name it clearly
+          so you'll always know what it's for.
+        instruction: >
+          Generate a new ed25519 key dedicated to GitHub:
+          ssh-keygen -t ed25519 -C "your@email.com" -f ~/.ssh/id_ed25519_github
+          When prompted for a passphrase:
+          - Add one for extra security (recommended)
+          - Or press Enter twice for no passphrase (simpler)
+          Start the SSH agent and add the new key:
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_ed25519_github
+          Verify the key was added:
+          ssh-add -l
+        hints:
+          - level: 1
+            text: "-f specifies the filename. -C adds a comment (usually your email)."
+          - level: 2
+            text: >
+              eval "$(ssh-agent -s)" starts the agent in your current shell.
+              ssh-add adds your key to the running agent.
+              The agent holds your key in memory so you don't type your
+              passphrase every time.
+          - level: 3
+            text: >
+              ssh-keygen -t ed25519 -C "your@email.com" -f ~/.ssh/id_ed25519_github
+              eval "$(ssh-agent -s)"
+              ssh-add ~/.ssh/id_ed25519_github
+              ssh-add -l
+              You should see your key fingerprint in the output.
+        xp: 50
+        db_save:
+          - field: ssh_key_path
+            value: "~/.ssh/id_ed25519_github"
+          - field: ssh_key_type
+            value: "ed25519"
+        verification:
+          strategy: all
+          checks:
+            - id: check-2a-1-a
+              type: file_match
+              description: "ed25519 github key exists"
+              path: "~/.ssh/id_ed25519_github.pub"
+              match_type: exists
+              expected: null
+            - id: check-2a-1-b
+              type: regex_output
+              description: "key is loaded in ssh-agent"
+              command: "ssh-add -l"
+              pattern: "ed25519"
+        on_success: >
+          New key generated. Loaded in the agent. Named clearly.
+          In six months, when you're managing five different SSH keys
+          for five different services, you'll be glad you did this.
+        on_failure: >
+          If ssh-keygen fails: check that ~/.ssh/ directory exists.
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          Then try again.
+
+  - id: act-2-path-reuse-key
+    title: "Familiar Ground"
+    order: 2
+    branch_of: act-2
+    branch_option: option-e
+
+    narrative: >
+      The old RSA key. You don't know its full history but it's here
+      and it might work. You load it into the agent and move forward.
+      Faster. But you're carrying an unknown quantity into the afternoon.
+
+    tasks:
+      - id: task-2b-1
+        title: "Load the existing RSA key"
+        order: 1
+        context: >
+          You're reusing the existing key. At minimum, understand
+          what you're working with — key type, fingerprint, age.
+        instruction: >
+          Inspect the existing key:
+          ssh-keygen -l -f ~/.ssh/id_rsa.pub
+          Start the SSH agent and add it:
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          Verify it's loaded:
+          ssh-add -l
+          Note the fingerprint — you'll need it to identify this
+          key on GitHub.
+        hints:
+          - level: 1
+            text: "ssh-keygen -l shows the key fingerprint, type, and comment."
+          - level: 2
+            text: >
+              The fingerprint is a short hash that uniquely identifies
+              the key. When you add it to GitHub, you can match the
+              fingerprint in GitHub's settings to confirm it's the right key.
+          - level: 3
+            text: >
+              ssh-keygen -l -f ~/.ssh/id_rsa.pub
+              eval "$(ssh-agent -s)"
+              ssh-add ~/.ssh/id_rsa
+              ssh-add -l
+        xp: 30
+        db_save:
+          - field: ssh_key_path
+            value: "~/.ssh/id_rsa"
+          - field: ssh_key_type
+            value: "rsa"
+        verification:
+          strategy: all
+          checks:
+            - id: check-2b-1-a
+              type: regex_output
+              description: "RSA key is loaded in agent"
+              command: "ssh-add -l"
+              pattern: "RSA\\|rsa"
+        on_success: >
+          Key loaded. It'll work for now. Just remember — you don't
+          know the full history of this key. Keep that in mind
+          if anything unexpected happens this afternoon.
+        on_failure: >
+          If the key has a passphrase you've forgotten: you'll need
+          to generate a new one. Run: ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github
+
+  - id: act-2-path-overwrite-key
+    title: "Point of No Return"
+    order: 2
+    branch_of: act-2
+    branch_option: option-f
+
+    narrative: >
+      You generate a new key and save it to id_rsa — overwriting the old one.
+      The old key is gone. Whatever it was authenticating no longer works.
+      You don't know that yet. You'll find out this afternoon.
+
+    tasks:
+      - id: task-2c-1
+        title: "Generate new key (overwriting existing)"
+        order: 1
+        context: >
+          You've chosen to overwrite. This is irreversible.
+          At least generate a strong key and document what you've done.
+        instruction: >
+          Generate a new key (this will overwrite the existing one):
+          ssh-keygen -t ed25519 -C "your@email.com" -f ~/.ssh/id_rsa
+          Type 'y' when warned about overwriting.
+          Start the agent and load the new key:
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          Create a note about what you did:
+          echo "$(date): regenerated id_rsa — previous key overwritten" >> ~/.ssh/key-history.txt
+        hints:
+          - level: 1
+            text: >
+              The key-history.txt note won't undo the damage but it
+              will help you remember what you did when you're debugging
+              later. Good habit regardless of the circumstances.
+          - level: 2
+            text: >
+              ssh-keygen will ask 'Overwrite (y/n)?' — you must type y
+              to proceed. This is your last chance to change your mind.
+          - level: 3
+            text: >
+              ssh-keygen -t ed25519 -C "your@email.com" -f ~/.ssh/id_rsa
+              (type y when prompted)
+              eval "$(ssh-agent -s)"
+              ssh-add ~/.ssh/id_rsa
+        xp: 20
+        db_save:
+          - field: ssh_key_path
+            value: "~/.ssh/id_rsa"
+          - field: ssh_key_type
+            value: "ed25519"
+        verification:
+          strategy: all
+          checks:
+            - id: check-2c-1-a
+              type: file_match
+              description: "new key exists at id_rsa path"
+              path: "~/.ssh/id_rsa.pub"
+              match_type: exists
+              expected: null
+        on_success: >
+          New key in place. Agent loaded. GitHub won't know the difference.
+          But somewhere on a server, a script is trying to authenticate
+          with a key that no longer exists. You'll meet that problem
+          at the worst possible time — this afternoon.
+        on_failure: >
+          If you changed your mind: ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_github
+          Use a different path and start clean.
+
+# -----------------------------------------------------------------------------
+# 5. ENDINGS
+# -----------------------------------------------------------------------------
+endings:
+
+  - id: ending-committed
+    title: "Committed"
+    type: success
+    conditions:
+      morale: ">= 75"
+      technical_debt: "< 30"
+
+    narrative: >
+      5:15 PM. You close your laptop. Today you:
+      Built a professional git environment from scratch. Generated and
+      secured SSH keys. Set up branch protection that actually stopped
+      a direct push. Resolved a real merge conflict without losing
+      anyone's work. Wrote a post-mortem that Priya forwarded to
+      compliance. Synced your progress to a repo that is now the
+      living record of your engineering journey.
+
+      Jordan messages at 5:20 PM:
+      "Good working with you today. That conflict resolve was textbook.
+      And that post-mortem template — can I steal it?"
+
+      Alex's message comes at 5:47 PM. Just four words:
+      "Good setup. Good habits."
+
+      From Alex, that's a standing ovation.
+
+    score_modifier: 1.0
+
+    post_mortem: >
+      Git is not a backup tool. It's a collaboration platform, an audit
+      trail, and a communication medium. Every commit message is a message
+      to your future self and your teammates. Branch protection isn't
+      bureaucracy — it's the system that caught Jordan's conflict before
+      it hit main. SSH keys are credentials — treat them like passwords,
+      name them clearly, rotate them independently. And always write the
+      post-mortem. Always.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +20
+      yearly_review_flags: []
+
+    future_references:
+      - module: bash-scripting
+        callback: >
+          Your INCIDENT-001.md becomes the reference example when
+          building the monitoring script. The post-mortem template
+          you wrote is now the team standard.
+      - module: ci-cd
+        callback: >
+          Branch protection rules you configured are already in place
+          when the CI/CD pipeline is set up. The pipeline respects
+          them from day one — no rework needed.
+
+  - id: ending-pushed-to-main
+    title: "Pushed to Main"
+    type: partial
+    conditions:
+      morale: ">= 45"
+      technical_debt: "< 60"
+
+    narrative: >
+      5:30 PM. The fix is live. The post-mortem is thin but filed.
+      prodops sync ran. You got through today.
+
+      But Alex noticed the vague commit message. Priya noticed the
+      incomplete post-mortem. Jordan noticed their change was handled
+      a little hastily. Nothing was said directly. But nothing needed
+      to be. You can feel it.
+
+      Tomorrow is a new day. The habits you build in the next few
+      modules will matter. The yearly review is still six months away.
+
+    score_modifier: 0.75
+
+    post_mortem: >
+      Speed without care creates invisible debt. Vague commit messages
+      seem harmless until six months later when nobody knows what
+      'fixed it' means. Incomplete post-mortems seem fine until the
+      same incident happens again. Good git hygiene isn't extra work —
+      it's the work. The code change is five minutes. The message,
+      the PR description, the post-mortem — that's the other half
+      of the job.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - flag: "git-module-partial"
+          severity: minor
+          note: >
+            Incomplete post-mortem filed. Vague commit messages noted
+            by senior SRE. Config fix delivered on time but process
+            hygiene needs improvement.
+          can_be_offset_by:
+            - bash-scripting
+            - docker
+            - ci-cd
+
+    future_references:
+      - module: ci-cd
+        callback: >
+          A pipeline lint step rejects a commit message format.
+          The root cause is the habit formed (or not formed) here.
+
+  - id: ending-detached-head
+    title: "Detached HEAD"
+    type: low_score
+    conditions:
+      morale: "< 45"
+      technical_debt: ">= 60"
+
+    narrative: >
+      6:10 PM. You're still at your desk untangling the aftermath.
+
+      The SSH key you overwrote was used by Jamie's deploy backup script.
+      That script failed silently at 5:00 PM. Nobody noticed until Priya
+      got an alert at 5:45 PM about missing backup snapshots. The
+      post-mortem you filed was three lines. Alex read it in eleven
+      seconds and said nothing, which is worse than saying something.
+
+      Jordan is fine — their work was solid. The config fix shipped.
+      The dashboard works. But the trail of small decisions today
+      left marks that won't disappear quickly.
+
+      Priya's message at 6:05 PM:
+      "Let's find some time this week to sync on process.
+      Nothing urgent. Just want to make sure you're set up for success."
+
+      That's manager-speak for: this goes in the yearly review.
+
+      You'll carry this forward. Other modules can offset it.
+      But it won't be forgotten.
+
+    score_modifier: 0.5
+
+    post_mortem: >
+      Every shortcut has a cost. Overwriting an unknown key costs you
+      when that key turns out to be load-bearing. Skipping the post-mortem
+      costs you when the same incident recurs and nobody documented the fix.
+      The yearly review isn't a snapshot of your worst day — it's the
+      sum of all your days. One bad module doesn't end a career.
+      But patterns do. Build better patterns.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: -15
+      yearly_review_flags:
+        - flag: "git-module-low-score"
+          severity: moderate
+          note: >
+            SSH key mismanagement caused legacy deploy script failure.
+            Incomplete incident documentation. Process hygiene flagged
+            by engineering manager for follow-up.
+          can_be_offset_by:
+            - bash-scripting
+            - docker
+            - ci-cd
+
+    future_references:
+      - module: bash-scripting
+        callback: >
+          A deploy script fails with SSH authentication error.
+          The root cause references the key decision made in this module.
+      - module: ci-cd
+        callback: >
+          The same payment config incident recurs because the
+          post-mortem prevention section was never written.
+          You'll recognise it immediately.
+
+# -----------------------------------------------------------------------------
+# 6. PROGRESS TRACKING
+# -----------------------------------------------------------------------------
+progress:
+  schema_version: 1
+  tracked_fields:
+    - field: acts_completed
+      type: array
+    - field: decisions_made
+      type: map
+    - field: tasks_completed
+      type: array
+    - field: ending_reached
+      type: string
+    - field: final_score
+      type: integer
+    - field: xp_earned
+      type: integer
+    - field: tracker_final_state
+      type: map
+    - field: replays
+      type: integer
+    - field: decision_history
+      type: array
+    - field: performance_impact
+      type: map
+    - field: yearly_review_flags
+      type: array
+    - field: git_username
+      type: string
+    - field: git_email
+      type: string
+    - field: github_username
+      type: string
+    - field: ssh_key_path
+      type: string
+    - field: ssh_key_type
+      type: string
+    - field: github_ssh_verified
+      type: boolean
+    - field: default_branch_name
+      type: string
+    - field: prodops_sync_remote
+      type: string
+    - field: telemetry_consent_level
+      type: string
+
+# -----------------------------------------------------------------------------
+# 7. COMMUNITY CONTRIBUTIONS
+# -----------------------------------------------------------------------------
+community:
+  contributions_enabled: true
+  contribution_schema_version: 1

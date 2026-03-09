@@ -1,0 +1,479 @@
+# =============================================================================
+# PRODOPS CHRONICLES --- MODULE SCHEMA TEMPLATE
+# Version: 1.0
+# =============================================================================
+# This file is the canonical schema for all ProdOps Chronicles modules.
+# Every module YAML must follow this structure.
+# Fields marked [REQUIRED] must be present. [OPTIONAL] fields can be omitted.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. MODULE METADATA
+# -----------------------------------------------------------------------------
+module:
+  id: module-id                          # [REQUIRED] unique slug, e.g. linux-cli
+  name: "Module Display Name"            # [REQUIRED] human-readable name
+  version: "1.0.0"                       # [REQUIRED] semver
+  pod: prodops-modulename                # [REQUIRED] container/pod name
+  order: 1                               # [REQUIRED] position in learning sequence
+  mode: beginner                         # [REQUIRED] beginner | intermediate | advanced
+  runtime: docker-compose                # [REQUIRED] docker-compose | k3s
+  tags:                                  # [OPTIONAL] searchable tags
+    - linux
+    - cli
+    - bash
+
+  description: >                         # [REQUIRED] short description shown in prodops module list
+    One paragraph description of what this module teaches and why it matters.
+
+  unlock:
+    requires: null                       # [REQUIRED] null (first module) or module-id of prerequisite
+    score_threshold: 80                  # [REQUIRED] minimum score % to unlock next module
+
+# -----------------------------------------------------------------------------
+# 2. CHRONICLE --- The narrative wrapper for the entire module
+# -----------------------------------------------------------------------------
+# The Chronicle is the real-world scenario that frames all acts and tasks.
+# It sets the stage before the learner touches anything.
+# -----------------------------------------------------------------------------
+chronicle:
+  title: "Chronicle Title"               # [REQUIRED] e.g. "The Mystery Server"
+  tagline: "One-line dramatic hook"      # [REQUIRED] shown on module select screen
+
+  setting: >                             # [REQUIRED] world-building context
+    Describe the company, team, situation. What kind of org is this?
+    What does the team do? What is the broader context the learner is dropped into?
+
+  incident: >                            # [REQUIRED] what just went wrong / what challenge exists
+    The specific problem or situation the learner must deal with.
+    Written in second person ("You've just been handed SSH access to...").
+
+  role: "Your Role Title"                # [REQUIRED] e.g. "Junior SRE", "Platform Engineer"
+  team:                                  # [OPTIONAL] NPCs the learner interacts with
+    - name: "Alex"
+      role: "Senior SRE"
+      personality: "Blunt, expects you to figure things out"
+    - name: "Priya"
+      role: "Engineering Manager"
+      personality: "Supportive but watching the incident timer"
+
+  stakes: >                              # [REQUIRED] what happens if this goes wrong
+    Describe the business/technical consequences of failure.
+    Makes the scenario feel real and urgent.
+
+  # Global consequence trackers --- updated by act outcomes
+  trackers:
+    morale:                              # Team morale score
+      initial: 100
+      min: 0
+      max: 100
+    incident_severity:                   # Current severity level
+      initial: P2
+      levels: [P1, P2, P3, P4]          # P1 = critical, P4 = resolved
+    technical_debt:                      # Debt score accumulated by shortcuts
+      initial: 0
+      min: 0
+      max: 100
+
+# -----------------------------------------------------------------------------
+# 3. ACTS --- Each module has 3-4 acts. Each act has branches.
+# -----------------------------------------------------------------------------
+# Acts are the top-level story chapters within a Chronicle.
+# Each act presents a situation, the learner makes a decision,
+# and the consequences affect trackers, tasks, and future acts.
+# -----------------------------------------------------------------------------
+acts:
+
+  - id: act-1                            # [REQUIRED] unique act id within module
+    title: "Act Title"                   # [REQUIRED] e.g. "First Contact"
+    order: 1                             # [REQUIRED] act sequence number
+
+    narrative: >                         # [REQUIRED] scene-setting for this act
+      What is happening right now in the story? Written in second person,
+      present tense. Sets up the decision the learner must make.
+
+    # -------------------------------------------------------------------------
+    # DECISION POINT --- the branching moment within this act
+    # -------------------------------------------------------------------------
+    decision:
+      prompt: >                          # [REQUIRED] the question/situation forcing a choice
+        What does the learner need to decide? Phrased as a real-world
+        judgment call, not a quiz question.
+
+      options:                           # [REQUIRED] 2-4 options per decision point
+        - id: option-a
+          label: "Short option label"    # shown in CLI menu
+          description: >                # [REQUIRED] what this choice means / implies
+            A sentence or two explaining what the learner is choosing to do.
+          consequences:
+            morale: -10                  # [OPTIONAL] tracker delta (+ or -)
+            incident_severity: escalate  # [OPTIONAL] escalate | de-escalate | null
+            technical_debt: +20          # [OPTIONAL] tracker delta
+          leads_to: act-2-path-a         # [REQUIRED] next act id or ending id
+          feedback: >                    # [REQUIRED] shown immediately after choosing
+            What happens as a result of this choice? Narrative consequence
+            shown to the learner right after they pick this option.
+          future_echo: >                 # [OPTIONAL] referenced in a later act/module
+            If this choice resurfaces later, what does that look like?
+            Used to generate callbacks in future acts or modules.
+
+        - id: option-b
+          label: "Short option label"
+          description: >
+            Description of what this choice means.
+          consequences:
+            morale: +5
+            incident_severity: de-escalate
+            technical_debt: 0
+          leads_to: act-2-path-b
+          feedback: >
+            Narrative consequence of choosing this option.
+          future_echo: null
+
+    # -------------------------------------------------------------------------
+    # TASKS --- hands-on work the learner must complete within this act
+    # -------------------------------------------------------------------------
+    # Tasks are tied to the act, not the decision. All paths through an act
+    # complete the same core tasks (decision affects narrative + next act only).
+    # Path-specific tasks are defined in the branch acts below.
+    # -------------------------------------------------------------------------
+    tasks:
+      - id: task-1-1                     # [REQUIRED] unique task id
+        title: "Task Title"              # [REQUIRED] shown in prodops lesson next
+        order: 1                         # [REQUIRED] task sequence within act
+
+        context: >                       # [REQUIRED] why are we doing this task right now?
+          Links the task to the current story moment. One or two sentences.
+
+        instruction: >                   # [REQUIRED] what the learner must do
+          Clear, specific instruction written in imperative form.
+          ("Navigate to /var/log and find the most recently modified file.")
+
+        hints:                           # [OPTIONAL] progressive hint system
+          - level: 1
+            text: "Gentle nudge — don't give it away"
+          - level: 2
+            text: "More specific hint"
+          - level: 3
+            text: "Near-complete answer for learners who are stuck"
+
+        xp: 50                           # [REQUIRED] XP awarded on completion
+
+        verification:                    # [REQUIRED] what prodops verify checks
+          strategy: all                  # all (must pass all) | any (pass any one)
+          checks:
+            - id: check-1
+              type: exit_code            # exit_code | file_match | regex_output
+              description: "Human readable description of what we're checking"
+              # --- exit_code fields ---
+              command: "ls /var/log"
+              expected_exit_code: 0
+
+            - id: check-2
+              type: file_match
+              description: "Check file exists with correct content"
+              # --- file_match fields ---
+              path: "/home/prodops/work/output.txt"
+              match_type: contains       # contains | exact | exists
+              expected: "expected string or multiline content"
+
+            - id: check-3
+              type: regex_output
+              description: "Check command output matches pattern"
+              # --- regex_output fields ---
+              command: "cat /etc/hosts"
+              pattern: "^127\\.0\\.0\\.1\\s+localhost"
+              flags: multiline           # [OPTIONAL] multiline | ignorecase
+
+        on_success: >                    # [OPTIONAL] narrative shown on task completion
+          What the story says when the learner succeeds. Keeps immersion.
+
+        on_failure: >                    # [OPTIONAL] narrative shown on task failure
+          What happens in the story if they get it wrong. Encourages retry.
+
+# -----------------------------------------------------------------------------
+# 4. BRANCH ACTS --- acts that only appear on specific decision paths
+# -----------------------------------------------------------------------------
+# These follow the same structure as acts above but are only reached
+# if a specific decision option was chosen.
+# -----------------------------------------------------------------------------
+branch_acts:
+
+  - id: act-2-path-a                     # [REQUIRED] matches leads_to in decision option
+    title: "Branch Act Title"
+    order: 2
+    branch_of: act-1                     # [REQUIRED] parent act this branched from
+    branch_option: option-a              # [REQUIRED] which option triggered this branch
+
+    narrative: >
+      Story continuation specific to this path. Reflects the consequences
+      of the choice made in act-1 option-a.
+
+    decision:                            # [OPTIONAL] branch acts can have their own decisions
+      prompt: >
+        Another decision point on this path.
+      options:
+        - id: option-a1
+          label: "Option label"
+          description: "Description"
+          consequences:
+            morale: -5
+            technical_debt: +10
+          leads_to: act-3
+          feedback: "Consequence narrative"
+          future_echo: null
+
+    tasks:                               # [REQUIRED] path-specific tasks
+      - id: task-2a-1
+        title: "Path A Specific Task"
+        order: 1
+        context: >
+          Context for this task on path A.
+        instruction: >
+          What to do on this specific path.
+        hints:
+          - level: 1
+            text: "Hint"
+        xp: 75
+        verification:
+          strategy: all
+          checks:
+            - id: check-1
+              type: exit_code
+              description: "Check description"
+              command: "some command"
+              expected_exit_code: 0
+        on_success: "Success narrative"
+        on_failure: "Failure narrative"
+
+  - id: act-2-path-b
+    title: "Branch Act Title (Path B)"
+    order: 2
+    branch_of: act-1
+    branch_option: option-b
+
+    narrative: >
+      Story continuation for path B.
+
+    tasks:
+      - id: task-2b-1
+        title: "Path B Specific Task"
+        order: 1
+        context: "Context"
+        instruction: "Instruction"
+        hints:
+          - level: 1
+            text: "Hint"
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-1
+              type: file_match
+              description: "Check description"
+              path: "/some/path"
+              match_type: exists
+              expected: null
+        on_success: "Success narrative"
+        on_failure: "Failure narrative"
+
+# -----------------------------------------------------------------------------
+# 5. CONVERGENCE ACTS --- acts all paths merge back into
+# -----------------------------------------------------------------------------
+# After branching, paths can converge back to shared acts.
+# The narrative acknowledges which path the learner came from.
+# -----------------------------------------------------------------------------
+convergence_acts:
+
+  - id: act-3                            # [REQUIRED] referenced by branch leads_to
+    title: "Convergence Act Title"
+    order: 3
+    converges_from:                      # [REQUIRED] list of branch act ids that lead here
+      - act-2-path-a
+      - act-2-path-b
+
+    # Path-aware narrative --- different text shown based on which path led here
+    narrative:
+      default: >
+        Default narrative shown if no path-specific version matches.
+      path_variants:
+        - from: act-2-path-a
+          text: >
+            Narrative variant for learners who came via path A.
+            Can reference consequences of their earlier choice.
+        - from: act-2-path-b
+          text: >
+            Narrative variant for learners who came via path B.
+
+    decision:
+      prompt: "Decision prompt"
+      options:
+        - id: option-c1
+          label: "Option"
+          description: "Description"
+          consequences:
+            morale: +10
+          leads_to: ending-good
+          feedback: "Feedback"
+          future_echo: null
+
+    tasks:
+      - id: task-3-1
+        title: "Convergence Task"
+        order: 1
+        context: "Context"
+        instruction: "Instruction"
+        hints:
+          - level: 1
+            text: "Hint"
+        xp: 100
+        verification:
+          strategy: all
+          checks:
+            - id: check-1
+              type: regex_output
+              description: "Check description"
+              command: "some command"
+              pattern: "expected pattern"
+        on_success: "Success"
+        on_failure: "Failure"
+
+# -----------------------------------------------------------------------------
+# 6. ENDINGS --- each module has multiple possible endings
+# -----------------------------------------------------------------------------
+# Endings are determined by the combination of paths taken and tracker states.
+# All endings award module completion but with different scores + narrative.
+# -----------------------------------------------------------------------------
+endings:
+
+  - id: ending-good
+    title: "Ending Title"                # [REQUIRED] e.g. "Incident Resolved"
+    type: success                        # [REQUIRED] success | partial | failure
+    conditions:                          # [REQUIRED] tracker conditions that trigger this ending
+      incident_severity: P4              # resolved
+      morale: ">= 70"
+      technical_debt: "< 40"
+
+    narrative: >                         # [REQUIRED] closing story beat
+      What happened? How did it resolve? What does the team say?
+      Written in second person, past tense. Satisfying conclusion.
+
+    score_modifier: 1.0                  # [REQUIRED] multiplier on total XP earned (0.5 - 1.2)
+
+    post_mortem: >                       # [REQUIRED] the "lesson learned" summary
+      Real DevOps insight extracted from this Chronicle.
+      What would a senior engineer say in the post-mortem meeting?
+
+    unlocks_next: true                   # [REQUIRED] does this ending unlock the next module?
+
+    future_references:                   # [OPTIONAL] seeds for future module callbacks
+      - module: git                      # which future module gets a callback
+        callback: >
+          If the learner took shortcuts here, the Git module references
+          this moment ("Remember when you chmod 777'd that directory...").
+        performance_impact:
+    performance_score: 0        # integer, + or -, added to running total
+      yearly_review_flags:
+        - flag: "unique-flag-id"
+          severity: minor         # minor | moderate | severe
+          note: >
+            Human readable note shown in yearly review.
+            What specifically happened and why it matters.
+          can_be_offset_by:       # list of module ids that can compensate
+            - bash
+            - docker
+
+  - id: ending-partial
+    title: "Partial Success Ending"
+    type: partial
+    conditions:
+      incident_severity: P3
+      morale: ">= 40"
+      technical_debt: "< 70"
+    narrative: >
+      Partial success narrative.
+    score_modifier: 0.75
+    post_mortem: >
+      Lesson learned from partial success.
+    unlocks_next: true
+    future_references: []
+    performance_impact:
+      performance_score: 0        # integer, + or -, added to running total
+      yearly_review_flags:
+        - flag: "unique-flag-id"
+          severity: minor         # minor | moderate | severe
+          note: >
+            Human readable note shown in yearly review.
+            What specifically happened and why it matters.
+          can_be_offset_by:       # list of module ids that can compensate
+            - bash
+            - docker
+
+  - id: ending-failure
+    title: "Failure Ending"
+    type: failure
+    conditions:
+      incident_severity: P1
+      morale: "< 40"
+    narrative: >
+      Failure narrative --- not punishing, but honest about what went wrong.
+      Encourages replay with different choices.
+    score_modifier: 0.5
+    post_mortem: >
+      What went wrong and why. Reframes failure as learning.
+    unlocks_next: true                  
+    future_references: []
+    performance_impact:
+      performance_score: 0        # integer, + or -, added to running total
+      yearly_review_flags:
+        - flag: "unique-flag-id"
+          severity: minor         # minor | moderate | severe
+          note: >
+            Human readable note shown in yearly review.
+            What specifically happened and why it matters.
+          can_be_offset_by:       # list of module ids that can compensate
+            - bash
+            - docker
+
+# -----------------------------------------------------------------------------
+# 7. PROGRESS TRACKING --- what gets stored in the DB for this module
+# -----------------------------------------------------------------------------
+progress:
+  schema_version: 1                      # [REQUIRED] for future migrations
+
+  tracked_fields:                        # [REQUIRED] what gets written to user_progress
+    - field: acts_completed
+      type: array                        # list of act ids completed
+    - field: decisions_made
+      type: map                          # act_id -> option_id chosen
+    - field: tasks_completed
+      type: array                        # list of task ids completed
+    - field: ending_reached
+      type: string                       # ending id
+    - field: final_score
+      type: integer                      # 0-100
+    - field: xp_earned
+      type: integer
+    - field: tracker_final_state
+      type: map                          # morale, incident_severity, technical_debt at end
+    - field: replays
+      type: integer                      # how many times this module has been replayed
+    - field: decision_history
+      type: array                        # full ordered log of every decision ever made
+    - field: performance_impact
+      type: map                   # score delta + flags from this module
+    - field: yearly_review_flags
+      type: array                 # flags generated by this module's ending
+# -----------------------------------------------------------------------------
+# 8. COMMUNITY CONTRIBUTIONS
+# -----------------------------------------------------------------------------
+# Additional tasks and scenarios contributed via PR.
+# Same verification schema as core tasks.
+# Reviewed by maintainer before merge.
+# -----------------------------------------------------------------------------
+community:
+  contributions_enabled: true            # [REQUIRED]
+  contribution_schema_version: 1         # [REQUIRED]
+  # Contributions live in modules/<module-id>/community/*.yaml
+  # Each file follows the task schema defined above.
+  # They are injected as optional bonus tasks after core tasks complete.

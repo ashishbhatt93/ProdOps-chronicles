@@ -1,0 +1,1322 @@
+# =============================================================================
+# PRODOPS CHRONICLES --- MODULE 01: LINUX CLI
+# Schema Version: 1.0
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. MODULE METADATA
+# -----------------------------------------------------------------------------
+module:
+  id: linux-cli
+  name: "Linux CLI"
+  version: "1.0.0"
+  pod: prodops-linux
+  order: 1
+  mode: beginner
+  runtime: docker-compose
+  tags:
+    - linux
+    - cli
+    - bash
+    - ssh
+    - filesystem
+
+  description: >
+    You've been handed SSH access to an unfamiliar server with no documentation
+    and no handover notes. Navigate the filesystem, understand what's running,
+    fix broken permissions, and figure out why the disk is nearly full —
+    all before the system goes down. Learn the Linux CLI the way engineers
+    actually learn it: under pressure, in the dark, figuring it out.
+
+  unlock:
+    requires: null
+    score_threshold: 80
+
+# -----------------------------------------------------------------------------
+# 2. CHRONICLE
+# -----------------------------------------------------------------------------
+chronicle:
+  title: "The Mystery Server"
+  tagline: "No docs. No handover. Just a server and a deadline."
+
+  setting: >
+    Finstack is a 40-person fintech startup running a payment processing
+    platform. The ops team is small — two senior SREs and one junior (you).
+    The company moves fast and documentation is always an afterthought.
+    Servers get set up, things get bolted on, and then the person who built
+    it leaves. Today is one of those days.
+
+  incident: >
+    It's 9:03 AM on a Monday. You've just opened Slack to find a message
+    from Alex, your senior SRE, sent at 8:47 AM:
+
+    "Hey — Jamie left on Friday. One of the servers they owned is throwing
+    disk warnings. I don't have time to look at it today. IP is 127.0.0.1.
+    Username: prodops. Sort it out. Let me know what you find."
+
+    That's it. No ticket. No runbook. Just an IP, a username, and a disk
+    warning. Welcome to ops.
+
+  role: "Junior SRE"
+  team:
+    - name: "Alex"
+      role: "Senior SRE"
+      personality: >
+        Direct and no-nonsense. Won't give you answers but will confirm
+        if you're on the right track. Respects engineers who show their
+        working. Gets irritated by people who panic or ask obvious questions
+        without trying first.
+    - name: "Priya"
+      role: "Engineering Manager"
+      personality: >
+        Calm under pressure. Cares about impact and timelines more than
+        technical details. Will check in if the incident drags on.
+        Appreciates clear, jargon-free status updates.
+    - name: "Jamie"
+      role: "Former SRE (offboarded)"
+      personality: >
+        Gone. Left no docs. Their decisions are now your problem.
+        You'll find traces of their work throughout the server.
+
+  stakes: >
+    The disk warning is at 85% capacity. If it hits 100%, the payment
+    processor's logging pipeline will fail silently — transactions will
+    still process but audit logs will stop writing. Compliance will flag
+    this within 24 hours. If it's not resolved by end of day, Priya will
+    need to notify the compliance team, which means paperwork, which means
+    nobody's happy. You have until EOD.
+
+  trackers:
+    morale:
+      initial: 100
+      min: 0
+      max: 100
+    incident_severity:
+      initial: P2
+      levels: [P1, P2, P3, P4]
+    technical_debt:
+      initial: 0
+      min: 0
+      max: 100
+
+# -----------------------------------------------------------------------------
+# 3. ACTS
+# -----------------------------------------------------------------------------
+acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 1 — First Contact
+  # ---------------------------------------------------------------------------
+  - id: act-1
+    title: "First Contact"
+    order: 1
+
+    narrative: >
+      You stare at Alex's Slack message. 127.0.0.1. You recognise that IP —
+      it's localhost. Either Alex made a typo, or this "mystery server" is
+      closer than you expected. Either way, you need to get in.
+      Your terminal is open. What's your first move?
+
+    decision:
+      prompt: >
+        Alex has given you an IP and nothing else. Before you SSH in,
+        what do you do?
+      options:
+        - id: option-a
+          label: "SSH in immediately"
+          description: >
+            No point waiting. You have the IP and credentials. Get in
+            and start looking around.
+          consequences:
+            morale: 0
+            incident_severity: null
+            technical_debt: +10
+          leads_to: act-2-path-a
+          feedback: >
+            You SSH in without checking anything first. You're in —
+            but you have no baseline. You don't know if the server
+            was reachable five minutes ago or five days ago.
+            Alex notices you jumped straight in. No comment. Yet.
+          future_echo: >
+            In the Docker module, a container will be unreachable and
+            you'll wish you'd built the habit of checking connectivity
+            before assuming access.
+
+        - id: option-b
+          label: "Ask Alex for more context"
+          description: >
+            You don't know what this server does, who owns it, or what
+            normal looks like. Ask before touching.
+          consequences:
+            morale: +5
+            incident_severity: null
+            technical_debt: 0
+          leads_to: act-2-path-b
+          feedback: >
+            Alex replies after four minutes:
+            "Payment audit log server. Runs a log aggregator and a cron job.
+            That's all I know. Jamie set it up. Just find what's eating disk."
+            Not much — but better than nothing. Alex adds: "Good call asking
+            first. Don't break anything."
+          future_echo: >
+            In the CI/CD module, asking questions before running a pipeline
+            will be rewarded. Engineers who gather context make fewer
+            irreversible mistakes.
+
+        - id: option-c
+          label: "Check connectivity first (ping / curl)"
+          description: >
+            Before SSH, verify the server is actually reachable.
+            No point debugging SSH if the host is down.
+          consequences:
+            morale: +10
+            incident_severity: de-escalate
+            technical_debt: 0
+          leads_to: act-2-path-c
+          feedback: >
+            You ping 127.0.0.1. It responds immediately — of course it does,
+            it's localhost. But the habit is correct. You've just confirmed
+            network connectivity before touching anything else.
+            When you mention this to Alex later, they say:
+            "Most juniors skip that step. Don't stop doing it."
+          future_echo: >
+            In the Docker and CI/CD modules, connectivity checks before
+            deployment will be second nature to you. This is where that
+            muscle memory starts.
+
+    tasks:
+      - id: task-1-1
+        title: "SSH into the server"
+        order: 1
+        context: >
+          Whatever your first move was, you now need to get into the server.
+          The credentials are: user: prodops, host: 127.0.0.1.
+          If you've never SSH'd into localhost before — this is the moment
+          you learn that your own machine is a server too.
+        instruction: >
+          SSH into the server using the provided credentials.
+          Command: ssh prodops@127.0.0.1
+          If prompted about host authenticity, type 'yes' to continue.
+          Once connected, confirm you are on the correct machine by
+          printing the hostname.
+        hints:
+          - level: 1
+            text: >
+              The SSH command follows the pattern: ssh username@host.
+              You have both the username and host already.
+          - level: 2
+            text: >
+              Try: ssh prodops@127.0.0.1
+              Once connected, run: hostname
+          - level: 3
+            text: >
+              Full sequence:
+              ssh prodops@127.0.0.1
+              (type yes if asked about authenticity)
+              hostname
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-1-a
+              type: exit_code
+              description: "SSH command exits successfully"
+              command: "ssh -o BatchMode=yes -o ConnectTimeout=5 prodops@127.0.0.1 exit"
+              expected_exit_code: 0
+            - id: check-1-1-b
+              type: regex_output
+              description: "Hostname command returns a value"
+              command: "hostname"
+              pattern: "^[a-zA-Z0-9\\-]+"
+        on_success: >
+          You're in. The terminal prompt changes to prodops@hostname.
+          Somewhere on this server is a disk problem. Time to find it.
+        on_failure: >
+          Connection refused or timed out. Is SSH running?
+          Try: sudo systemctl status ssh
+          If it's not running: sudo systemctl start ssh
+
+      - id: task-1-2
+        title: "Get your bearings — who are you and where are you?"
+        order: 2
+        context: >
+          You're connected to a server you've never seen before.
+          Before touching anything, a good SRE establishes a baseline:
+          who am I logged in as, what machine is this, and what is
+          the current state of the system?
+        instruction: >
+          Run the following commands and note what each one tells you:
+          1. whoami        — confirm your current user
+          2. hostname      — confirm the machine name
+          3. uname -a      — kernel and OS details
+          4. uptime        — how long has this been running?
+          5. w             — who else is logged in?
+        hints:
+          - level: 1
+            text: "Run each command one at a time and read the output carefully."
+          - level: 2
+            text: >
+              whoami tells you your username.
+              uname -a gives kernel version and architecture.
+              uptime shows load average — useful for spotting stress.
+          - level: 3
+            text: >
+              Just run them in sequence:
+              whoami && hostname && uname -a && uptime && w
+        xp: 30
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-2-a
+              type: exit_code
+              description: "whoami runs successfully"
+              command: "whoami"
+              expected_exit_code: 0
+            - id: check-1-2-b
+              type: regex_output
+              description: "uname returns OS info"
+              command: "uname -a"
+              pattern: "Linux"
+            - id: check-1-2-c
+              type: exit_code
+              description: "uptime runs successfully"
+              command: "uptime"
+              expected_exit_code: 0
+        on_success: >
+          You now know who you are, what machine this is, and that it's
+          been running for a while. Nobody else is logged in. Good.
+          Now find that disk problem.
+        on_failure: >
+          These are core system commands — they should always work.
+          Make sure you're actually connected to the server first.
+
+  # ---------------------------------------------------------------------------
+  # ACT 2 — Dead Reckoning (all paths converge here after branch acts)
+  # This act is reached after act-2-path-a/b/c complete
+  # ---------------------------------------------------------------------------
+  - id: act-2-converge
+    title: "Dead Reckoning"
+    order: 3
+
+    narrative: >
+      You're in, you have your bearings, and you know this server has a
+      disk problem. Time to find it. No runbook. No one to ask.
+      You'll need to navigate the filesystem the way a detective works a
+      scene — methodically, without assuming anything.
+
+    decision:
+      prompt: >
+        You need to find what's eating disk space. How do you approach this?
+      options:
+        - id: option-d
+          label: "Check disk usage top-down (df then du)"
+          description: >
+            Start broad with df to see overall disk state, then drill
+            down with du to find the specific directories eating space.
+            Methodical and thorough.
+          consequences:
+            morale: +10
+            incident_severity: de-escalate
+            technical_debt: 0
+          leads_to: act-3-path-methodical
+          feedback: >
+            Smart approach. df shows you the full picture first —
+            you confirm /var is at 87% before drilling deeper.
+            Alex sees your method in the incident notes later and
+            says nothing — which from Alex means approval.
+          future_echo: >
+            In the Bash Scripting module, this top-down diagnostic
+            pattern becomes the foundation of your monitoring script.
+
+        - id: option-e
+          label: "Check /var/log directly — it's always logs"
+          description: >
+            Experience (or instinct) tells you it's almost always logs
+            filling up disk. Go straight there.
+          consequences:
+            morale: 0
+            incident_severity: null
+            technical_debt: +15
+          leads_to: act-3-path-direct
+          feedback: >
+            You're right this time — it is logs. But you got lucky.
+            You skipped the diagnostic step that would have caught it
+            even if it wasn't logs. Technical debt: +15.
+            You fixed it fast but you don't know why it happened.
+          future_echo: >
+            In the Bash module, your monitoring script will have a
+            gap — you'll only check /var/log and miss a rogue
+            temp directory because you never built the df/du habit.
+
+    tasks:
+      - id: task-2-1
+        title: "Check overall disk usage"
+        order: 1
+        context: >
+          Before hunting for the culprit, understand the full picture.
+          Which filesystem is full? How full is it? Is it one partition
+          or multiple?
+        instruction: >
+          Run df -h to see disk usage across all mounted filesystems.
+          Identify which filesystem is at high capacity.
+          Note the mount point — you'll need it for the next step.
+        hints:
+          - level: 1
+            text: "df stands for disk free. The -h flag makes output human-readable."
+          - level: 2
+            text: >
+              Run: df -h
+              Look for any filesystem above 80% in the Use% column.
+          - level: 3
+            text: >
+              df -h | sort -k5 -rh
+              This sorts by usage percentage, highest first.
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-1-a
+              type: exit_code
+              description: "df -h runs successfully"
+              command: "df -h"
+              expected_exit_code: 0
+            - id: check-2-1-b
+              type: regex_output
+              description: "Output contains percentage usage"
+              command: "df -h"
+              pattern: "\\d+%"
+        on_success: >
+          You can see it clearly now — /var is sitting at 87%.
+          Everything else is fine. The problem is contained to one
+          filesystem. Time to drill down.
+        on_failure: >
+          df should always work. If it's not found, try /bin/df -h.
+
+      - id: task-2-2
+        title: "Find the largest directories"
+        order: 2
+        context: >
+          You know /var is the problem. Now find which directory inside
+          /var is eating all the space. This is the du command —
+          disk usage, not disk free.
+        instruction: >
+          Use du to find the top disk consumers inside /var.
+          Run: sudo du -h /var --max-depth=2 | sort -rh | head -20
+          Identify the top 3 directories by size.
+        hints:
+          - level: 1
+            text: >
+              du -h gives human-readable sizes.
+              --max-depth=2 limits how deep it goes so output isn't overwhelming.
+              sort -rh sorts largest first.
+          - level: 2
+            text: >
+              Run the command as written. Look for directories with
+              sizes in the hundreds of MB or GB range.
+          - level: 3
+            text: >
+              sudo du -h /var --max-depth=2 | sort -rh | head -20
+              The top result after /var itself is your culprit.
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-2-a
+              type: exit_code
+              description: "du command runs successfully"
+              command: "sudo du -h /var --max-depth=2 2>/dev/null | sort -rh | head -20"
+              expected_exit_code: 0
+            - id: check-2-2-b
+              type: regex_output
+              description: "Output contains /var/log"
+              command: "sudo du -h /var --max-depth=2 2>/dev/null | sort -rh | head -5"
+              pattern: "/var/log"
+        on_success: >
+          There it is. /var/log is consuming 12GB.
+          Something has been writing to logs unchecked.
+          Time to find out what.
+        on_failure: >
+          If permission denied, make sure you're using sudo.
+          If du isn't available, try: sudo find /var -type f -size +100M
+
+  # ---------------------------------------------------------------------------
+  # ACT 3 — The Culprit
+  # ---------------------------------------------------------------------------
+  - id: act-3-converge
+    title: "The Culprit"
+    order: 4
+
+    narrative: >
+      /var/log is your target. Inside, somewhere, a file or set of files
+      has grown out of control. Jamie's cron job is still running —
+      you can see it in the process list. Whatever it's doing,
+      it's been logging everything and rotating nothing.
+      Priya just pinged you: "Any update? Compliance check is at 3pm."
+      It's 11:20 AM.
+
+    decision:
+      prompt: >
+        You've found oversized log files written by Jamie's cron job.
+        The logs are legitimate audit data — you can't just delete them.
+        How do you handle this?
+      options:
+        - id: option-f
+          label: "Compress old logs and set up log rotation"
+          description: >
+            Compress logs older than 7 days with gzip, then configure
+            logrotate so this never happens again. Takes longer but
+            fixes the root cause.
+          consequences:
+            morale: +15
+            incident_severity: de-escalate
+            technical_debt: -10
+          leads_to: act-4-path-proper
+          feedback: >
+            This is the right call. You're not just fixing the symptom —
+            you're fixing the system. Alex messages: "Good thinking on
+            logrotate. That's exactly what Jamie should have set up."
+            Morale up. Debt down.
+          future_echo: >
+            In the Bash Scripting module, your monitoring script will
+            include a log rotation check because you built this habit here.
+
+        - id: option-g
+          label: "Archive logs to a separate location"
+          description: >
+            Move old logs to /tmp or another partition to free up space
+            immediately. Faster fix, buys time, but doesn't prevent recurrence.
+          consequences:
+            morale: -5
+            incident_severity: null
+            technical_debt: +25
+          leads_to: act-4-path-shortcut
+          feedback: >
+            Disk space freed. Incident technically resolved for now.
+            But you've moved the problem, not fixed it. /tmp will fill
+            up within a week. Technical debt accumulates.
+            Priya is happy with the quick fix. Alex is not.
+          future_echo: >
+            In the CI/CD module, a pipeline will fail because /tmp
+            is full. The root cause will be traced back to this decision.
+
+        - id: option-h
+          label: "Investigate the cron job before touching anything"
+          description: >
+            Before modifying anything, understand what the cron job does,
+            why it logs so much, and whether it's still needed.
+            Risk: takes longer. Reward: no surprises.
+          consequences:
+            morale: +20
+            incident_severity: null
+            technical_debt: -5
+          leads_to: act-4-path-investigate
+          feedback: >
+            You check crontab -l and read the script. Turns out the cron
+            job has a bug — it's logging every transaction twice due to
+            a misconfigured flag. You fix the flag, set up log rotation,
+            and file a note for the dev team. Alex responds to your
+            incident update with: "This is good work."
+          future_echo: >
+            In the Bash Scripting module, you'll recognise this exact
+            type of cron bug immediately. You've seen it before.
+
+    tasks:
+      - id: task-3-1
+        title: "Investigate the log files"
+        order: 1
+        context: >
+          You know /var/log is the problem. Now identify exactly which
+          files are oversized and when they were last written to.
+        instruction: >
+          Navigate to /var/log and find the largest files.
+          Run: sudo find /var/log -type f -name "*.log" | xargs sudo ls -lh | sort -k5 -rh | head -10
+          Then check the most recent entries in the largest log file:
+          sudo tail -n 20 /var/log/<largest-file>
+        hints:
+          - level: 1
+            text: >
+              find locates files, ls -lh shows sizes, sort orders them.
+              Pipe them together for a ranked list.
+          - level: 2
+            text: >
+              sudo find /var/log -type f | xargs ls -lh 2>/dev/null | sort -k5 -rh | head -10
+              Replace <largest-file> with the filename from the output.
+          - level: 3
+            text: >
+              Step 1: sudo find /var/log -type f -name "*.log" -size +100M
+              Step 2: sudo tail -n 20 /var/log/<that-file>
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-1-a
+              type: exit_code
+              description: "find command on /var/log runs successfully"
+              command: "sudo find /var/log -type f 2>/dev/null | head -1"
+              expected_exit_code: 0
+            - id: check-3-1-b
+              type: exit_code
+              description: "tail on a log file runs successfully"
+              command: "sudo tail -n 5 /var/log/syslog 2>/dev/null || sudo tail -n 5 /var/log/messages 2>/dev/null"
+              expected_exit_code: 0
+        on_success: >
+          You can see the pattern now. The same lines repeating,
+          timestamped every minute. Jamie's cron job has been running
+          every 60 seconds and logging the full output every time.
+          For three weeks.
+        on_failure: >
+          Make sure you're using sudo for /var/log access.
+          Try: sudo ls -lh /var/log/ first to confirm access.
+
+      - id: task-3-2
+        title: "Check the cron job"
+        order: 2
+        context: >
+          You've found the source. Now find the cron job responsible.
+          Who set it up? What does it do? Is it still needed?
+        instruction: >
+          Check all cron jobs on the system:
+          1. crontab -l               — your user's cron jobs
+          2. sudo crontab -l          — root's cron jobs
+          3. ls /etc/cron.d/          — system-level cron jobs
+          4. ls /etc/cron.daily/      — daily cron jobs
+          Find the job that matches the log pattern you found.
+        hints:
+          - level: 1
+            text: "Cron jobs can live in multiple places. Check all four locations."
+          - level: 2
+            text: >
+              The job is likely in /etc/cron.d/ or sudo crontab -l.
+              Look for something referencing /var/log or the log filename.
+          - level: 3
+            text: >
+              Run all four commands in sequence.
+              The culprit will reference the script that's been logging.
+              Note the schedule — */1 * * * * means every minute.
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-2-a
+              type: exit_code
+              description: "crontab -l runs successfully"
+              command: "crontab -l 2>/dev/null; sudo crontab -l 2>/dev/null; true"
+              expected_exit_code: 0
+            - id: check-3-2-b
+              type: exit_code
+              description: "cron.d directory is accessible"
+              command: "ls /etc/cron.d/"
+              expected_exit_code: 0
+        on_success: >
+          Found it. /etc/cron.d/audit-logger — runs every minute,
+          owned by jamie. The script pipes full output to
+          /var/log/audit-pipeline.log with no rotation, no max size,
+          no cleanup. Three weeks of every-minute logs. That's your 12GB.
+        on_failure: >
+          If permission denied on crontab, try: sudo crontab -u jamie -l
+          Or check: sudo cat /etc/cron.d/*
+
+  # ---------------------------------------------------------------------------
+  # ACT 4 — Resolution
+  # ---------------------------------------------------------------------------
+  - id: act-4-converge
+    title: "Resolution"
+    order: 5
+
+    narrative: >
+      It's 1:45 PM. You know what the problem is. You know how it happened.
+      Now you need to fix it cleanly — and document what you did so
+      the next person (possibly future you) isn't starting from scratch.
+      Priya checks in: "Compliance call is at 3. Will we be ready?"
+
+    decision:
+      prompt: >
+        The incident is resolved but you need to close it properly.
+        How do you document what happened?
+      options:
+        - id: option-i
+          label: "Write a proper post-mortem note"
+          description: >
+            Document what happened, why it happened, what you fixed,
+            and what should be done permanently. File it in the team's
+            incident log.
+          consequences:
+            morale: +20
+            incident_severity: de-escalate
+            technical_debt: -15
+          leads_to: ending-resolved
+          feedback: >
+            You write a clear incident summary: timeline, root cause,
+            fix applied, permanent solution recommended.
+            Priya reads it before the compliance call and says:
+            "This is exactly what I needed. Thank you."
+            Alex messages: "Good docs. Jamie never wrote anything down."
+          future_echo: >
+            In every future module, post-mortems will be referenced.
+            Engineers who write things down build institutional knowledge.
+
+        - id: option-j
+          label: "Tell Priya it's fixed verbally"
+          description: >
+            The problem is solved. Tell Priya it's handled and move on.
+            Documentation can wait.
+          consequences:
+            morale: -10
+            incident_severity: null
+            technical_debt: +20
+          leads_to: ending-partial
+          feedback: >
+            Priya is relieved but asks: "Can you send me a quick summary
+            for the compliance call?" You scramble to write something
+            from memory. Some details are fuzzy. Technical debt: +20.
+            The fix is solid but the knowledge lives only in your head.
+          future_echo: >
+            In a future module, you'll be asked what was done on this
+            server. Without notes, you'll have to guess.
+
+    tasks:
+      - id: task-4-1
+        title: "Free up disk space"
+        order: 1
+        context: >
+          Before the 3pm call, you need the disk below 70%.
+          Compress old logs safely — do not delete audit data.
+        instruction: >
+          Compress log files older than 7 days in /var/log:
+          sudo find /var/log -name "*.log" -mtime +7 -exec gzip {} \;
+          Then verify disk usage has dropped:
+          df -h /var
+        hints:
+          - level: 1
+            text: "-mtime +7 means files modified more than 7 days ago."
+          - level: 2
+            text: >
+              find locates the files, -exec runs gzip on each one.
+              gzip compresses in-place and adds .gz extension.
+          - level: 3
+            text: >
+              sudo find /var/log -name "*.log" -mtime +7 -exec gzip {} \;
+              df -h /var
+              Look for the Use% to drop significantly.
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-1-a
+              type: exit_code
+              description: "gzip compression command runs successfully"
+              command: "sudo find /var/log -name '*.log' -mtime +7 2>/dev/null | head -1"
+              expected_exit_code: 0
+            - id: check-4-1-b
+              type: regex_output
+              description: "Disk usage is below 80% on /var"
+              command: "df -h /var | tail -1 | awk '{print $5}'"
+              pattern: "^([0-9]|[1-7][0-9])%$"
+        on_success: >
+          Disk drops to 61%. Breathing room.
+          The compressed .gz files are still there — audit trail intact.
+          Priya can tell compliance: data preserved, space recovered.
+        on_failure: >
+          If no files match -mtime +7, try -mtime +1 for testing.
+          Confirm with: sudo find /var/log -name "*.log" -mtime +7 | wc -l
+
+      - id: task-4-2
+        title: "Set up log rotation"
+        order: 2
+        context: >
+          Freeing space is the short-term fix. Log rotation is the
+          long-term fix. Configure logrotate so the audit log never
+          grows unchecked again.
+        instruction: >
+          Create a logrotate config for the audit log.
+          Create the file: /etc/logrotate.d/audit-pipeline
+          With the following content:
+            /var/log/audit-pipeline.log {
+                daily
+                rotate 14
+                compress
+                missingok
+                notifempty
+                copytruncate
+            }
+          Then test it: sudo logrotate --debug /etc/logrotate.d/audit-pipeline
+        hints:
+          - level: 1
+            text: >
+              logrotate configs live in /etc/logrotate.d/.
+              Each directive controls a rotation behaviour.
+          - level: 2
+            text: >
+              daily = rotate every day
+              rotate 14 = keep 14 days of history
+              compress = gzip rotated files
+              copytruncate = truncate live file instead of moving it
+          - level: 3
+            text: >
+              sudo nano /etc/logrotate.d/audit-pipeline
+              Paste the config block exactly as shown.
+              sudo logrotate --debug /etc/logrotate.d/audit-pipeline
+        xp: 100
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-2-a
+              type: file_match
+              description: "logrotate config file exists"
+              path: "/etc/logrotate.d/audit-pipeline"
+              match_type: exists
+              expected: null
+            - id: check-4-2-b
+              type: file_match
+              description: "Config contains correct log path"
+              path: "/etc/logrotate.d/audit-pipeline"
+              match_type: contains
+              expected: "/var/log/audit-pipeline.log"
+            - id: check-4-2-c
+              type: file_match
+              description: "Config contains compress directive"
+              path: "/etc/logrotate.d/audit-pipeline"
+              match_type: contains
+              expected: "compress"
+            - id: check-4-2-d
+              type: exit_code
+              description: "logrotate debug runs without error"
+              command: "sudo logrotate --debug /etc/logrotate.d/audit-pipeline"
+              expected_exit_code: 0
+        on_success: >
+          Clean. The config is in place. From now on, logs rotate daily,
+          compress automatically, and only 14 days are kept.
+          This server will never hit 100% disk from audit logs again.
+          Jamie's ghost has been exorcised.
+        on_failure: >
+          Check the file was created: ls -la /etc/logrotate.d/audit-pipeline
+          Check syntax: sudo logrotate --debug /etc/logrotate.d/audit-pipeline
+          Look for any error messages in the debug output.
+
+      - id: task-4-3
+        title: "Fix file permissions"
+        order: 3
+        context: >
+          While investigating, you noticed the audit log file has
+          permissions 777 — readable and writable by everyone.
+          For an audit log on a payment system, that's a compliance issue.
+          Fix it before the 3pm call.
+        instruction: >
+          Set correct permissions on the audit log:
+          sudo chmod 640 /var/log/audit-pipeline.log
+          sudo chown root:adm /var/log/audit-pipeline.log
+          Verify: ls -la /var/log/audit-pipeline.log
+        hints:
+          - level: 1
+            text: >
+              chmod 640 = owner can read/write, group can read, others nothing.
+              chown sets the owner and group.
+          - level: 2
+            text: >
+              640 breaks down as: 6 (rw-) for owner, 4 (r--) for group, 0 (---) for others.
+              root:adm means root owns it, adm group can read it.
+          - level: 3
+            text: >
+              sudo chmod 640 /var/log/audit-pipeline.log
+              sudo chown root:adm /var/log/audit-pipeline.log
+              ls -la /var/log/audit-pipeline.log
+              Look for: -rw-r----- 1 root adm
+        xp: 70
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-3-a
+              type: regex_output
+              description: "File permissions are 640"
+              command: "stat -c '%a' /var/log/audit-pipeline.log"
+              pattern: "^640$"
+            - id: check-4-3-b
+              type: regex_output
+              description: "File is owned by root"
+              command: "stat -c '%U' /var/log/audit-pipeline.log"
+              pattern: "^root$"
+        on_success: >
+          Permissions locked down. The compliance team will see
+          correct access controls on the audit log.
+          That's one less finding in the report.
+        on_failure: >
+          Make sure the file exists first: ls /var/log/audit-pipeline.log
+          If it doesn't exist, create it: sudo touch /var/log/audit-pipeline.log
+          Then apply permissions.
+
+# -----------------------------------------------------------------------------
+# 4. BRANCH ACTS
+# -----------------------------------------------------------------------------
+branch_acts:
+
+  - id: act-2-path-a
+    title: "In the Deep End"
+    order: 2
+    branch_of: act-1
+    branch_option: option-a
+
+    narrative: >
+      You're in. No preamble, no context gathering — just you and an
+      unfamiliar filesystem. The terminal prompt stares back at you.
+      You don't know what this server does, what's supposed to be running,
+      or what normal looks like. You're navigating blind.
+      That's fine. You'll figure it out. Probably.
+
+    tasks:
+      - id: task-2a-1
+        title: "Figure out what this server is running"
+        order: 1
+        context: >
+          You jumped in without context. Now you need to build that
+          context yourself from what's on the machine.
+        instruction: >
+          Find out what processes are currently running and what
+          services are active:
+          1. ps aux | head -20          — running processes
+          2. sudo systemctl list-units --type=service --state=running
+          3. sudo ss -tlnp              — what ports are listening?
+        hints:
+          - level: 1
+            text: "ps shows processes, systemctl shows services, ss shows network."
+          - level: 2
+            text: >
+              ps aux | grep -v grep shows all processes.
+              ss -tlnp shows TCP listening ports and the process using them.
+          - level: 3
+            text: >
+              Run all three in sequence.
+              Look for anything unusual — unexpected services, unknown ports.
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-2a-1-a
+              type: exit_code
+              description: "ps aux runs successfully"
+              command: "ps aux | head -5"
+              expected_exit_code: 0
+            - id: check-2a-1-b
+              type: exit_code
+              description: "ss -tlnp runs successfully"
+              command: "sudo ss -tlnp"
+              expected_exit_code: 0
+        on_success: >
+          You now have a picture of what's running. A cron job,
+          a log aggregator, and SSH. Nothing exotic.
+          You built the context Alex should have given you.
+          Takes longer — but now you know more than Alex does.
+        on_failure: >
+          Try: ps aux | head -20
+          If ss isn't available: sudo netstat -tlnp
+
+  - id: act-2-path-b
+    title: "Armed with Context"
+    order: 2
+    branch_of: act-1
+    branch_option: option-b
+
+    narrative: >
+      Alex's reply was brief but useful. Payment audit log server.
+      Log aggregator and a cron job. You know what you're looking for
+      before you even SSH in. When you connect, you're not exploring —
+      you're investigating a specific problem with a specific scope.
+
+    tasks:
+      - id: task-2b-1
+        title: "Verify what Alex told you"
+        order: 1
+        context: >
+          Alex said there's a log aggregator and a cron job.
+          Verify both are present and note their current state.
+        instruction: >
+          Confirm the services Alex mentioned are running:
+          1. sudo systemctl status | grep -i log
+          2. crontab -l && sudo crontab -l
+          3. ps aux | grep -i cron
+        hints:
+          - level: 1
+            text: "You're verifying a specific claim, not exploring generally."
+          - level: 2
+            text: >
+              systemctl status filtered by 'log' will surface the aggregator.
+              crontab -l shows scheduled jobs.
+          - level: 3
+            text: >
+              sudo systemctl list-units --type=service | grep -i log
+              sudo crontab -l
+              ps aux | grep cron
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-2b-1-a
+              type: exit_code
+              description: "systemctl runs successfully"
+              command: "sudo systemctl list-units --type=service 2>/dev/null | head -1"
+              expected_exit_code: 0
+            - id: check-2b-1-b
+              type: exit_code
+              description: "crontab check runs"
+              command: "crontab -l 2>/dev/null; sudo crontab -l 2>/dev/null; true"
+              expected_exit_code: 0
+        on_success: >
+          Confirmed. Cron job running every minute.
+          Log aggregator writing to /var/log/audit-pipeline.log.
+          Alex's information was accurate. Now you have a map.
+        on_failure: >
+          systemctl not found? Try: service --status-all
+          crontab permission issue? Try: sudo crontab -l
+
+  - id: act-2-path-c
+    title: "By the Book"
+    order: 2
+    branch_of: act-1
+    branch_option: option-c
+
+    narrative: >
+      You pinged first. It responded. You confirmed connectivity before
+      assuming access — a habit most engineers only develop after the
+      third time they've spent an hour debugging an SSH issue that turned
+      out to be a dead host. You're ahead of the curve.
+      Now you SSH in with a clear head and a confirmed target.
+
+    tasks:
+      - id: task-2c-1
+        title: "Establish full connectivity baseline"
+        order: 1
+        context: >
+          You've confirmed ping. Now build a full connectivity picture
+          before starting the investigation. What ports are open?
+          What services are reachable?
+        instruction: >
+          Complete your connectivity check:
+          1. ping -c 3 127.0.0.1       — confirm ICMP
+          2. curl -s http://127.0.0.1 -o /dev/null -w "%{http_code}"
+          3. sudo ss -tlnp             — what's listening?
+          Note anything unexpected.
+        hints:
+          - level: 1
+            text: "-c 3 limits ping to 3 packets. curl -w shows the HTTP response code."
+          - level: 2
+            text: >
+              A 000 HTTP response means nothing is listening on port 80. That's fine.
+              ss -tlnp shows what IS listening and on which ports.
+          - level: 3
+            text: >
+              ping -c 3 127.0.0.1
+              curl -s http://127.0.0.1 -o /dev/null -w "%{http_code}\n"
+              sudo ss -tlnp
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-2c-1-a
+              type: exit_code
+              description: "ping runs successfully"
+              command: "ping -c 1 127.0.0.1"
+              expected_exit_code: 0
+            - id: check-2c-1-b
+              type: exit_code
+              description: "ss -tlnp runs successfully"
+              command: "sudo ss -tlnp"
+              expected_exit_code: 0
+        on_success: >
+          Baseline established. SSH on port 22. Nothing else exposed
+          externally. Clean picture. You know what's normal before
+          you start changing things. Alex would approve.
+        on_failure: >
+          ping not working? Check: ping -c 1 localhost
+          ss not available? Try: sudo netstat -tlnp
+
+  # ---------------------------------------------------------------------------
+  # Path-specific act 4 variants
+  # ---------------------------------------------------------------------------
+  - id: act-4-path-proper
+    title: "Root Cause Fixed"
+    order: 4
+    branch_of: act-3-converge
+    branch_option: option-f
+
+    narrative: >
+      You went the extra mile. Not just freeing disk but fixing the
+      system that caused the problem. The logrotate config is in place.
+      The cron job still runs but its output is now managed.
+      This server will not page anyone at 3 AM six months from now
+      because of an audit log. That's what good ops looks like.
+
+    tasks:
+      - id: task-4p-1
+        title: "Verify logrotate is working correctly"
+        order: 1
+        context: >
+          You've set up logrotate. Confirm it's configured correctly
+          and will run on schedule.
+        instruction: >
+          Verify your logrotate setup end-to-end:
+          1. sudo logrotate --debug /etc/logrotate.d/audit-pipeline
+          2. sudo logrotate --force /etc/logrotate.d/audit-pipeline
+          3. ls -lh /var/log/audit-pipeline*
+        hints:
+          - level: 1
+            text: "--debug does a dry run. --force actually runs it regardless of schedule."
+          - level: 2
+            text: >
+              After --force, you should see audit-pipeline.log.1.gz alongside
+              the original audit-pipeline.log.
+          - level: 3
+            text: >
+              sudo logrotate --debug /etc/logrotate.d/audit-pipeline
+              sudo logrotate --force /etc/logrotate.d/audit-pipeline
+              ls -lh /var/log/audit-pipeline*
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-4p-1-a
+              type: exit_code
+              description: "logrotate force runs successfully"
+              command: "sudo logrotate --force /etc/logrotate.d/audit-pipeline 2>/dev/null"
+              expected_exit_code: 0
+            - id: check-4p-1-b
+              type: regex_output
+              description: "Rotated log file exists"
+              command: "ls /var/log/audit-pipeline* 2>/dev/null"
+              pattern: "audit-pipeline"
+        on_success: >
+          Rotation confirmed. The system is self-maintaining now.
+          Future you says thank you.
+        on_failure: >
+          Check the config file exists: cat /etc/logrotate.d/audit-pipeline
+          Check for syntax errors in the debug output.
+
+  - id: act-4-path-shortcut
+    title: "Bought Time"
+    order: 4
+    branch_of: act-3-converge
+    branch_option: option-g
+
+    narrative: >
+      The disk is clear. Priya is happy. The compliance call will go fine.
+      But /tmp now has 12GB of compressed logs and no rotation config.
+      In a week, maybe two, this will page again — and whoever gets that
+      page will find logs in /tmp with no explanation of why they're there.
+      Today's fix is next week's mystery.
+
+    tasks:
+      - id: task-4s-1
+        title: "At least document where you moved things"
+        order: 1
+        context: >
+          You took a shortcut. The least you can do is leave a breadcrumb
+          so the next person isn't starting from zero.
+        instruction: >
+          Create a note file documenting what you did:
+          sudo nano /var/log/INCIDENT-NOTE.txt
+          Include: date, what was wrong, what you did, what still needs fixing.
+        hints:
+          - level: 1
+            text: "A text file in /var/log will be found by the next person investigating disk issues."
+          - level: 2
+            text: >
+              Include: date of incident, root cause (cron job writing to audit-pipeline.log),
+              action taken (moved to /tmp), recommended permanent fix (logrotate).
+          - level: 3
+            text: >
+              sudo nano /var/log/INCIDENT-NOTE.txt
+              Write something like:
+              "DATE: [today]
+              ISSUE: audit-pipeline.log grew to 12GB
+              FIX: moved old logs to /tmp (TEMP FIX)
+              TODO: set up logrotate for audit-pipeline.log"
+        xp: 30
+        verification:
+          strategy: all
+          checks:
+            - id: check-4s-1-a
+              type: file_match
+              description: "Incident note file exists"
+              path: "/var/log/INCIDENT-NOTE.txt"
+              match_type: exists
+              expected: null
+            - id: check-4s-1-b
+              type: file_match
+              description: "Note contains TODO reference"
+              path: "/var/log/INCIDENT-NOTE.txt"
+              match_type: contains
+              expected: "TODO"
+        on_success: >
+          It's not a post-mortem. But it's something.
+          At least the next person will know what happened.
+        on_failure: >
+          Create the file: sudo touch /var/log/INCIDENT-NOTE.txt
+          Then edit it: sudo nano /var/log/INCIDENT-NOTE.txt
+
+# -----------------------------------------------------------------------------
+# 5. ENDINGS
+# -----------------------------------------------------------------------------
+endings:
+
+  - id: ending-resolved
+    title: "Incident Resolved"
+    type: success
+    conditions:
+      incident_severity: P4
+      morale: ">= 70"
+      technical_debt: "< 40"
+
+    narrative: >
+      It's 2:47 PM. Disk is at 58%. Logrotate is configured. Permissions
+      are correct. Your incident note is three paragraphs of clear,
+      factual documentation. Priya forwards it to the compliance team
+      before the call even starts. The call lasts eleven minutes.
+
+      Alex sends you a Slack message at 4:30 PM:
+      "Good work today. Jamie never fixed anything properly.
+      You did. That matters."
+
+      You close your terminal. The mystery server isn't a mystery anymore.
+      It's just a server. And you know how to handle servers now.
+
+    score_modifier: 1.0
+    post_mortem: >
+      The root cause was a cron job with no output management writing to
+      a log file with no rotation policy. The fix was two-part: recover
+      disk space immediately (compress old logs), and prevent recurrence
+      (logrotate config). The lesson: always fix the system, not just
+      the symptom. A disk alert that comes back next week is not a
+      resolved incident — it's a deferred one.
+
+    unlocks_next: true
+    future_references:
+      - module: bash-scripting
+        callback: >
+          Your logrotate config from the Mystery Server Chronicle becomes
+          the reference example when you write your first monitoring script.
+      - module: ci-cd
+        callback: >
+          The pipeline validation step in the CI/CD module checks for
+          correct file permissions — a habit you built fixing Jamie's server.
+    performance_impact:
+      performance_score: +15
+      yearly_review_flags: []
+
+  - id: ending-partial
+    title: "Closed, For Now"
+    type: partial
+    conditions:
+      incident_severity: P3
+      morale: ">= 40"
+      technical_debt: "< 70"
+
+    narrative: >
+      The compliance call goes fine. Disk is clear. Priya is satisfied.
+      But the incident note was thin, the logrotate config isn't in place,
+      and somewhere in /tmp there are 12GB of logs that belong in /var/log.
+
+      Alex doesn't say anything. That's its own kind of message.
+
+      You fixed today's problem. The same problem will come back in
+      two weeks. When it does, you'll have more context — and hopefully
+      make a different call.
+
+    score_modifier: 0.75
+    post_mortem: >
+      The incident was resolved but not fixed. Moving logs to /tmp clears
+      disk but creates a new problem — /tmp fills up and nobody knows why.
+      Documentation was incomplete, making it harder for the team to learn
+      from the incident. Partial fixes create technical debt that compounds.
+      The right move was logrotate — always fix the system, not just the symptom.
+
+    unlocks_next: true
+    future_references:
+      - module: bash-scripting
+        callback: >
+          In the Bash module, /tmp fills up during your script exercise.
+          The root cause is the logs you moved here. Past decisions have consequences.
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - flag: "mystery-server-shortcuts"
+          severity: minor
+          note: >
+            Took shortcuts during disk incident. Fixed the symptom
+            not the root cause. No logrotate configured.
+          can_be_offset_by:
+            - bash
+            - ci-cd
+
+  - id: ending-failure
+    title: "Escalated"
+    type: failure
+    conditions:
+      incident_severity: P1
+      morale: "< 40"
+
+    narrative: >
+      It's 3:15 PM. The compliance call started without a resolution.
+      Disk hit 100% at 2:58 PM. The logging pipeline failed silently.
+      Priya had to tell the compliance team that audit logs have a gap.
+
+      Alex messages you: "What happened?"
+
+      You don't have a clean answer. You were moving fast but not
+      moving right. The server is still standing. You're still employed.
+      But this one will follow you for a while.
+
+      Replay the Chronicle. You know more now than you did this morning.
+      Use it.
+
+    score_modifier: 0.5
+    post_mortem: >
+      Speed without method is just chaos. The incident escalated because
+      the investigation skipped steps, the fixes addressed symptoms not
+      causes, and the documentation wasn't there when it was needed.
+      Every decision that saved five minutes today cost thirty minutes
+      tomorrow. In ops, slow is smooth and smooth is fast.
+
+    unlocks_next: true
+    future_references: []
+    performance_impact:
+      performance_score: -10
+      yearly_review_flags:
+        - flag: "mystery-server-escalated"
+          severity: moderate
+          note: >
+            Disk hit 100% during watch. Audit log gap flagged by
+            compliance. Incident escalated to Priya.
+          can_be_offset_by:
+            - docker
+            - ci-cd
+            - bash
+
+# -----------------------------------------------------------------------------
+# 6. PROGRESS TRACKING
+# -----------------------------------------------------------------------------
+progress:
+  schema_version: 1
+  tracked_fields:
+    - field: acts_completed
+      type: array
+    - field: decisions_made
+      type: map
+    - field: tasks_completed
+      type: array
+    - field: ending_reached
+      type: string
+    - field: final_score
+      type: integer
+    - field: xp_earned
+      type: integer
+    - field: tracker_final_state
+      type: map
+    - field: replays
+      type: integer
+    - field: decision_history
+      type: array
+
+# -----------------------------------------------------------------------------
+# 7. COMMUNITY CONTRIBUTIONS
+# -----------------------------------------------------------------------------
+community:
+  contributions_enabled: true
+  contribution_schema_version: 1

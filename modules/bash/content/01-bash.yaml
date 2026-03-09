@@ -1,0 +1,1727 @@
+# =============================================================================
+# PRODOPS CHRONICLES --- MODULE 03: BASH SCRIPTING
+# Schema Version: 1.0
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. MODULE METADATA
+# -----------------------------------------------------------------------------
+module:
+  id: bash-scripting
+  name: "Bash Scripting"
+  version: "1.0.0"
+  pod: prodops-bash
+  order: 3
+  mode: beginner
+  runtime: docker-compose
+  tags:
+    - bash
+    - scripting
+    - automation
+    - cron
+    - logging
+    - error-handling
+
+  description: >
+    Wednesday morning at Finstack. Alex has been watching the deployment
+    logs and noticed you've been manually running the same commands over
+    and over. Ten minutes each time. Three environments. Every config
+    change. Write a script or keep suffering. Over four acts, build a
+    production-ready deploy script from scratch — variables, logic, error
+    handling, logging, rollback — and schedule a log cleanup cron job that
+    fixes what you left behind on the mystery server.
+
+  unlock:
+    requires: git
+    score_threshold: 80
+
+# -----------------------------------------------------------------------------
+# 2. CHRONICLE
+# -----------------------------------------------------------------------------
+chronicle:
+  title: "Automate or Die"
+  tagline: "If you're doing it twice, you're doing it wrong."
+
+  setting: >
+    It's Wednesday at Finstack. Two days into your tenure on the ops team
+    and you've already fixed a mystery server, set up a professional git
+    environment, and shipped a hotfix under pressure. Alex has been quietly
+    watching how you work. Not just what you fix — how you fix it. And
+    he's noticed something. Every time there's a config change, you open
+    a terminal and manually type the same sequence of commands. Copy file.
+    SSH to server. Apply config. Verify. Repeat for staging. Repeat for
+    prod. It takes fifteen minutes each time and you've done it three times
+    this week already.
+
+  incident: >
+    9:08 AM. Alex's message lands in Slack:
+
+    "I've been watching the deployment logs. You manually pushed the
+    payment config fix three times this week — test, staging, prod.
+    Same commands every time. Same order. Same flags.
+    How long does it take you each time?"
+
+    You reply: "About 10-15 minutes."
+
+    Alex: "Multiply that by every config change, every week, for as
+    long as you work in ops. That's hours of your life doing something
+    a computer could do in seconds. Also — manual steps means human
+    error. You got lucky this week. Write a script. I want to see it
+    by end of day Friday."
+
+    Two days. A real problem. A direct order.
+    Let's build something.
+
+  role: "Junior SRE"
+  team:
+    - name: "Alex"
+      role: "Senior SRE"
+      personality: >
+        Still watching. Still saying little. But the fact that he's
+        investing time in pushing you to automate means he thinks
+        you're worth the investment. He'll review the script on Friday.
+        It needs to be good.
+    - name: "Priya"
+      role: "Engineering Manager"
+      personality: >
+        Aware of the automation initiative. Interested in the outcome
+        because manual deployments are a compliance risk — undocumented,
+        unrepeatable, human-error-prone. A good deploy script solves
+        a business problem, not just a technical one.
+    - name: "Jordan"
+      role: "Junior SRE"
+      personality: >
+        Will test your script on Thursday without warning. Not maliciously —
+        Jordan just sees a tool and uses it. If your script isn't safe,
+        Jordan will find the edge cases. Consider this a feature.
+    - name: "Jamie"
+      role: "Former SRE (offboarded)"
+      personality: >
+        Their manual deploy notes — a Google Doc titled 'deploy steps v3 FINAL'
+        — are still pinned in the ops Slack channel. Twelve steps. No error
+        handling. Two of them are just '???' with no explanation.
+        You're replacing this.
+
+  stakes: >
+    The payment config deploy process is currently manual, undocumented,
+    and error-prone. One wrong command in the wrong environment could
+    push an incorrect config to production. A half-deployed config —
+    where some servers have the new value and some have the old — is
+    worse than no deployment at all. By Friday, this process needs to
+    be automated, logged, safe to run by anyone, and impossible to
+    accidentally run against the wrong environment without confirmation.
+    Also — the disk warning is back. Not as bad as last week but
+    climbing. That needs a permanent fix too.
+
+  trackers:
+    morale:
+      initial: 100
+      min: 0
+      max: 100
+    technical_debt:
+      initial: 0
+      min: 0
+      max: 100
+    performance_score:
+      initial: 0
+      min: -50
+      max: 100
+
+# -----------------------------------------------------------------------------
+# 3. ACTS
+# -----------------------------------------------------------------------------
+acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 1 — The Grind
+  # ---------------------------------------------------------------------------
+  - id: act-1
+    title: "The Grind"
+    order: 1
+
+    narrative: >
+      You open Jamie's deploy doc. Step 1: copy payment.cfg to /tmp.
+      Step 2: SSH to server. Step 3: sudo cp /tmp/payment.cfg /etc/payment/.
+      Step 4: restart service. Steps 5-12: repeat with variations you
+      have to mentally track. Step 8 is '???'.
+      You close the doc. You open a new file: deploy.sh.
+      A bash script starts with three things: who runs it, what it is,
+      and what it needs to know before it does anything.
+      Start there.
+
+    decision:
+      prompt: >
+        You've written the first version of the script. It takes the
+        environment as an argument: ./deploy.sh staging
+        Alex reviews it and asks: "What happens if someone runs this
+        with no arguments?"
+
+      options:
+        - id: option-a
+          label: "Add argument validation — fail fast with a clear error"
+          description: >
+            Check $# at the start. If no arguments provided, print
+            usage instructions and exit 1 immediately.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-2
+          feedback: >
+            Alex reads it: "Good. It tells you what it needs instead
+            of silently doing the wrong thing. That's the difference
+            between a script and a tool." Morale +10.
+          future_echo: >
+            In Act 3, when Jordan runs the script without arguments,
+            they get a clear error message and usage instructions.
+            No damage done. This decision protected the system.
+
+        - id: option-b
+          label: "Add default values — assume staging if no argument"
+          description: >
+            If no environment argument provided, default to staging.
+            Safer than prod but potentially confusing.
+          consequences:
+            morale: 0
+            technical_debt: +10
+          leads_to: act-2
+          feedback: >
+            Alex: "Why staging? What if I'm on the prod server when
+            I run this? Silent defaults are silent surprises. Make it
+            explicit." Technical debt +10. It works but the behaviour
+            isn't obvious from the interface.
+          future_echo: >
+            In Act 3, Jordan runs the script on the prod server without
+            arguments. It defaults to staging — deploys staging config
+            to prod. Fifteen minutes of cleanup follow.
+
+        - id: option-c
+          label: "Leave it — engineers should know how to use their tools"
+          description: >
+            No validation. If someone runs it wrong, they'll figure it out.
+          consequences:
+            morale: -10
+            technical_debt: +20
+          leads_to: act-2
+          feedback: >
+            Alex: "Jamie said the same thing. That's why step 8 of
+            his deploy doc is '???'. Engineers forget. Scripts should
+            be idiot-proof — including future you at 3 AM."
+            Technical debt +20. This will hurt in Act 3.
+          future_echo: >
+            In Act 3, Jordan runs the script without arguments in prod.
+            No guard rail. Config partially deploys. Staging is clean.
+            Prod is not. This is how incidents start.
+
+    tasks:
+      - id: task-1-1
+        title: "Create the scripts directory and deploy.sh"
+        order: 1
+        context: >
+          Every project needs a home for its scripts. Create the
+          directory structure and the empty script file. The shebang
+          line tells the system which interpreter to use — always
+          the first line of every bash script, no exceptions.
+        instruction: >
+          Create the scripts directory in your prodops-chronicles repo:
+          mkdir -p ~/prodops-chronicles/scripts
+          Create the deploy script:
+          touch ~/prodops-chronicles/scripts/deploy.sh
+          Add the shebang line:
+          echo '#!/bin/bash' > ~/prodops-chronicles/scripts/deploy.sh
+          Make it executable:
+          chmod +x ~/prodops-chronicles/scripts/deploy.sh
+          Verify:
+          ls -la ~/prodops-chronicles/scripts/deploy.sh
+          head -1 ~/prodops-chronicles/scripts/deploy.sh
+        hints:
+          - level: 1
+            text: >
+              The shebang #!/bin/bash must be the very first line.
+              No blank lines before it. No spaces after #!.
+          - level: 2
+            text: >
+              chmod +x makes the file executable.
+              Without it: bash deploy.sh works.
+              With it: ./deploy.sh works. The difference matters.
+          - level: 3
+            text: >
+              mkdir -p ~/prodops-chronicles/scripts
+              echo '#!/bin/bash' > ~/prodops-chronicles/scripts/deploy.sh
+              chmod +x ~/prodops-chronicles/scripts/deploy.sh
+              ls -la ~/prodops-chronicles/scripts/
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-1-a
+              type: file_match
+              description: "deploy.sh exists"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: exists
+              expected: null
+            - id: check-1-1-b
+              type: file_match
+              description: "shebang line is correct"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "#!/bin/bash"
+            - id: check-1-1-c
+              type: regex_output
+              description: "file is executable"
+              command: "ls -la ~/prodops-chronicles/scripts/deploy.sh"
+              pattern: "^-rwx"
+        on_success: >
+          File created. Executable. Shebang in place.
+          The computer now knows what to do with this file.
+          Now tell it what you need.
+        on_failure: >
+          Check: ls -la ~/prodops-chronicles/scripts/deploy.sh
+          If permission denied on chmod: sudo chmod +x deploy.sh
+          If shebang missing: echo '#!/bin/bash' > deploy.sh
+
+      - id: task-1-2
+        title: "Add variables and argument handling"
+        order: 2
+        context: >
+          A script that hardcodes values is barely better than typing
+          commands manually. Variables make scripts reusable.
+          Arguments make them flexible. Together they make a tool
+          instead of a one-time shortcut.
+        instruction: >
+          Add the following to deploy.sh after the shebang line:
+          # --- Configuration ---
+          ENVIRONMENT=${1}
+          CONFIG_FILE=${2:-"config/payment.cfg"}
+          DEPLOY_USER="prodops"
+          TIMESTAMP=$(date '+%Y-%m-%d_%H:%M:%S')
+
+          # --- Argument validation ---
+          if [[ $# -lt 1 ]]; then
+            echo "Usage: $0 <environment> [config-file]"
+            echo "Environments: staging | prod"
+            echo "Example: $0 staging config/payment.cfg"
+            exit 1
+          fi
+
+          echo "Starting deployment..."
+          echo "Environment : $ENVIRONMENT"
+          echo "Config file : $CONFIG_FILE"
+          echo "Timestamp   : $TIMESTAMP"
+          echo "Deployed by : $DEPLOY_USER"
+
+          Then test it:
+          ./scripts/deploy.sh
+          ./scripts/deploy.sh staging
+          ./scripts/deploy.sh staging config/payment.cfg
+        hints:
+          - level: 1
+            text: >
+              $1 is the first argument. $2 is the second.
+              ${2:-"default"} means: use $2 if set, otherwise use "default".
+              $# is the count of arguments passed.
+          - level: 2
+            text: >
+              [[ $# -lt 1 ]] means "if argument count is less than 1".
+              -lt = less than, -eq = equal, -gt = greater than.
+              exit 1 signals failure to whatever called the script.
+          - level: 3
+            text: >
+              After adding the block, test all three cases:
+              ./scripts/deploy.sh            # should print usage and exit
+              ./scripts/deploy.sh staging    # should print config info
+              ./scripts/deploy.sh staging config/payment.cfg  # full args
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-2-a
+              type: file_match
+              description: "script contains ENVIRONMENT variable"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "ENVIRONMENT="
+            - id: check-1-2-b
+              type: file_match
+              description: "script contains argument validation"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "exit 1"
+            - id: check-1-2-c
+              type: regex_output
+              description: "script exits with error when no args given"
+              command: "~/prodops-chronicles/scripts/deploy.sh 2>&1; echo $?"
+              pattern: "1$"
+        on_success: >
+          The script now knows what it needs and says so clearly
+          when it doesn't get it. Run it without arguments —
+          it tells you exactly how to use it.
+          That's a tool. Jamie's doc was a prayer.
+        on_failure: >
+          Check the script contents: cat ~/prodops-chronicles/scripts/deploy.sh
+          Make sure the if block uses [[ not [ — double brackets in bash.
+          Test manually: ./scripts/deploy.sh and check the exit code: echo $?
+
+      - id: task-1-3
+        title: "Commit the first version"
+        order: 3
+        context: >
+          You have a working first version. Commit it. Every working
+          state of a script should be in version control — not just
+          the final version. The git history is your undo stack.
+        instruction: >
+          Commit the first version to your repo:
+          cd ~/prodops-chronicles
+          git checkout -b feat/deploy-script
+          git add scripts/deploy.sh
+          git commit -m "feat: add deploy script v1 — variables and argument validation"
+          git push origin feat/deploy-script
+        hints:
+          - level: 1
+            text: "New feature = new branch. Even for a script. Especially for a script."
+          - level: 2
+            text: >
+              feat/ prefix follows conventional commits convention.
+              The commit message says what it does and why it matters.
+          - level: 3
+            text: >
+              git checkout -b feat/deploy-script
+              git add scripts/deploy.sh
+              git commit -m "feat: add deploy script v1 — variables and argument validation"
+              git push origin feat/deploy-script
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-3-a
+              type: regex_output
+              description: "on feat/deploy-script branch"
+              command: "git -C ~/prodops-chronicles branch --show-current"
+              pattern: "feat/deploy-script"
+            - id: check-1-3-b
+              type: exit_code
+              description: "deploy.sh is committed"
+              command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh"
+              expected_exit_code: 0
+        on_success: >
+          Version 1 committed. The script's history starts here.
+          In two days you'll look back at this commit and see
+          how far it came. For now — add the logic.
+        on_failure: >
+          Make sure you're in the repo: cd ~/prodops-chronicles
+          Check branch: git branch
+          Check status: git status
+
+  # ---------------------------------------------------------------------------
+  # ACT 2 — Make it Smart
+  # ---------------------------------------------------------------------------
+  - id: act-2
+    title: "Make it Smart"
+    order: 2
+
+    narrative: >
+      Thursday morning. Alex reviews version 1:
+      "Good start. But it does the same thing regardless of environment.
+      Staging and prod are not the same. The script should know the
+      difference — different servers, different confirmation requirements,
+      different risk levels. And that echo block you have? That's going
+      to be three environments times three config steps. Write a function.
+      Don't repeat yourself."
+      You open deploy.sh. Time to add a brain.
+
+    decision:
+      prompt: >
+        The script can now deploy to prod. Alex asks:
+        "What happens if someone runs this against prod at 2 AM,
+        half asleep, and types the wrong environment?"
+
+      options:
+        - id: option-d
+          label: "Add explicit prod confirmation — type CONFIRM to proceed"
+          description: >
+            Before any prod deployment, require the user to type
+            CONFIRM exactly. Forces conscious, deliberate action.
+          consequences:
+            morale: +15
+            technical_debt: 0
+          leads_to: act-3
+          feedback: >
+            Alex: "Standard practice for prod deployments. Every team
+            I've worked on has some version of this. Good instinct."
+            In Act 3, Jordan accidentally targets prod — the confirmation
+            prompt stops them cold. No damage done.
+          future_echo: >
+            In the CI/CD module, the pipeline has a manual approval
+            gate for prod deployments. You'll recognise the pattern
+            immediately because you built it by hand first.
+
+        - id: option-e
+          label: "Add a --dry-run flag — preview without executing"
+          description: >
+            Add a --dry-run mode that prints every step without
+            actually running it. Safe preview before real execution.
+          consequences:
+            morale: +10
+            technical_debt: -5
+          leads_to: act-3
+          feedback: >
+            Alex: "Dry-run is excellent practice. Shows your work
+            before committing to it. Used by Terraform, Ansible,
+            rsync — the best tools all have it." Morale +10.
+            Technical debt -5 for reducing risk proactively.
+          future_echo: >
+            In the Docker module, you'll use --dry-run instinctively
+            when testing build commands. A habit born here.
+
+        - id: option-f
+          label: "Leave it — engineers should know what they're running"
+          description: >
+            No confirmation gate. Trust the user to be careful.
+          consequences:
+            morale: -15
+            technical_debt: +25
+          leads_to: act-3
+          feedback: >
+            Alex says nothing. Which means he's writing a note.
+            Jordan runs the script against prod on Thursday afternoon
+            without reading the environment argument carefully.
+            Staging config deploys to prod. Twenty minutes of cleanup.
+            Priya asks for an incident report. Technical debt +25.
+          future_echo: >
+            In Act 3, the incident from this decision surfaces as
+            a real cleanup task. You'll build the safety gate you
+            should have built now — under pressure instead of calmly.
+
+    tasks:
+      - id: task-2-1
+        title: "Add conditionals — environment-aware behaviour"
+        order: 1
+        context: >
+          Staging and prod need different behaviour. Staging can be
+          deployed to freely. Prod needs more care — different server,
+          higher stakes, explicit confirmation. The script needs to
+          know the difference and act accordingly.
+        instruction: >
+          Add environment-aware logic to deploy.sh after the variable block:
+
+          # --- Environment validation ---
+          case "$ENVIRONMENT" in
+            staging)
+              DEPLOY_HOST="staging.finstack.internal"
+              DEPLOY_PATH="/etc/payment/"
+              ;;
+            prod)
+              DEPLOY_HOST="prod.finstack.internal"
+              DEPLOY_PATH="/etc/payment/"
+              ;;
+            *)
+              echo "ERROR: Unknown environment '$ENVIRONMENT'"
+              echo "Valid environments: staging | prod"
+              exit 1
+              ;;
+          esac
+
+          echo "Target host : $DEPLOY_HOST"
+          echo "Deploy path : $DEPLOY_PATH"
+
+          Test with invalid environment:
+          ./scripts/deploy.sh invalid
+        hints:
+          - level: 1
+            text: >
+              case is cleaner than if/elif for matching a variable
+              against multiple specific values. Each option ends with ;;
+              The *) catches anything that doesn't match.
+          - level: 2
+            text: >
+              DEPLOY_HOST and DEPLOY_PATH are set inside the case block.
+              They'll be available to the rest of the script after the
+              case statement closes with esac.
+          - level: 3
+            text: >
+              After adding the case block, test:
+              ./scripts/deploy.sh invalid   # should error
+              ./scripts/deploy.sh staging   # should show staging host
+              ./scripts/deploy.sh prod      # should show prod host
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-1-a
+              type: file_match
+              description: "script contains case statement"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "case \"$ENVIRONMENT\""
+            - id: check-2-1-b
+              type: regex_output
+              description: "invalid environment exits with error"
+              command: "~/prodops-chronicles/scripts/deploy.sh invalid 2>&1; echo $?"
+              pattern: "1$"
+            - id: check-2-1-c
+              type: regex_output
+              description: "staging shows correct host"
+              command: "~/prodops-chronicles/scripts/deploy.sh staging 2>&1"
+              pattern: "staging"
+        on_success: >
+          The script now knows where it's deploying before it deploys.
+          Invalid environments are caught immediately.
+          One more layer — the deploy function itself.
+        on_failure: >
+          Check the case syntax carefully — case ... in, options end with ;;
+          Close with esac. Common mistake: missing ;; after an option.
+
+      - id: task-2-2
+        title: "Extract logic into functions"
+        order: 2
+        context: >
+          The deploy steps will be similar for both environments.
+          Functions let you write that logic once and call it with
+          different arguments. No copy-paste. No drift between
+          environments. One function, tested once, used everywhere.
+        instruction: >
+          Add a deploy_config function to deploy.sh before the case block:
+
+          # --- Functions ---
+          deploy_config() {
+            local env=$1
+            local config=$2
+            local host=$3
+            local path=$4
+
+            echo "Deploying $config to $env ($host:$path)..."
+            cp "$config" "/tmp/$(basename $config).deploy"
+            echo "Config staged for deployment to $host"
+            echo "Deployment complete: $env"
+          }
+
+          Then call it after the case block:
+          deploy_config "$ENVIRONMENT" "$CONFIG_FILE" "$DEPLOY_HOST" "$DEPLOY_PATH"
+
+          Test the full flow:
+          ./scripts/deploy.sh staging config/payment.cfg
+        hints:
+          - level: 1
+            text: >
+              local variables inside functions are scoped to that function.
+              They don't pollute the global script namespace.
+              Always use local for function variables.
+          - level: 2
+            text: >
+              The function receives positional arguments just like the script.
+              $1 inside the function is the first argument to the function,
+              not the first argument to the script.
+          - level: 3
+            text: >
+              Define the function BEFORE you call it.
+              Bash reads top to bottom — calling before defining fails.
+              Test: ./scripts/deploy.sh staging config/payment.cfg
+              You should see the deployment output.
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-2-a
+              type: file_match
+              description: "script contains deploy_config function"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "deploy_config()"
+            - id: check-2-2-b
+              type: file_match
+              description: "function uses local variables"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "local env="
+            - id: check-2-2-c
+              type: regex_output
+              description: "script runs deploy function successfully"
+              command: "~/prodops-chronicles/scripts/deploy.sh staging config/payment.cfg 2>&1"
+              pattern: "Deployment complete"
+        on_success: >
+          Logic extracted. One function. Called with different arguments
+          for different environments. If the deploy process changes,
+          you change it in one place. Not twelve steps in a Google Doc.
+        on_failure: >
+          Make sure the function is defined BEFORE it's called.
+          Check function syntax: name() { ... } not function name() { ... }
+          Test: bash -n scripts/deploy.sh to check syntax without running.
+
+      - id: task-2-3
+        title: "Add the production confirmation gate"
+        order: 3
+        context: >
+          Based on your decision, add the appropriate safety mechanism
+          for production deployments. This is the difference between
+          a script that can be run safely by anyone and a script that
+          requires the operator to know what they're doing.
+        instruction: >
+          Add the prod safety gate after the case block, before the
+          deploy_config call:
+
+          # --- Production confirmation ---
+          if [[ "$ENVIRONMENT" == "prod" ]]; then
+            echo ""
+            echo "WARNING: You are deploying to PRODUCTION."
+            echo "This will affect live payment processing."
+            echo ""
+            read -p "Type CONFIRM to proceed: " confirmation
+            if [[ "$confirmation" != "CONFIRM" ]]; then
+              echo "Deployment cancelled."
+              exit 0
+            fi
+          fi
+
+          Test it:
+          ./scripts/deploy.sh prod config/payment.cfg
+          Type anything other than CONFIRM — should cancel.
+          Type CONFIRM — should proceed.
+        hints:
+          - level: 1
+            text: >
+              read -p prints a prompt and waits for input.
+              The input is stored in the variable after -p "prompt": varname.
+          - level: 2
+            text: >
+              [[ "$confirmation" != "CONFIRM" ]] is case-sensitive.
+              'confirm' will not match 'CONFIRM'. That's intentional —
+              forces the user to type it exactly right.
+          - level: 3
+            text: >
+              Test the cancellation path first:
+              ./scripts/deploy.sh prod config/payment.cfg
+              Type: no (should cancel)
+              Then test the confirmation path:
+              ./scripts/deploy.sh prod config/payment.cfg
+              Type: CONFIRM (should proceed)
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-3-a
+              type: file_match
+              description: "script contains prod confirmation block"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "Type CONFIRM to proceed"
+            - id: check-2-3-b
+              type: file_match
+              description: "confirmation checks for exact CONFIRM string"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "CONFIRM\""
+        on_success: >
+          Safety gate in place. Try running against prod right now
+          and type anything other than CONFIRM. The script says no.
+          Jordan can run this script. You can run this script at 3 AM.
+          Neither of you can accidentally deploy to prod.
+        on_failure: >
+          Check read syntax: read -p "prompt: " variable_name
+          Make sure the if block is inside [[ ]] not [ ]
+          Bash syntax check: bash -n scripts/deploy.sh
+
+      - id: task-2-4
+        title: "Commit version 2"
+        order: 4
+        context: >
+          Version 2 has logic, functions, and a safety gate.
+          Commit it with a message that tells the story of what changed.
+        instruction: >
+          Commit the updated script:
+          cd ~/prodops-chronicles
+          git add scripts/deploy.sh
+          git commit -m "feat: add environment logic, deploy function, prod confirmation gate"
+          git push origin feat/deploy-script
+        hints:
+          - level: 1
+            text: "git add -p lets you stage specific chunks of a file if you want fine-grained commits."
+          - level: 2
+            text: >
+              The commit message lists three things that changed.
+              That's fine for a work-in-progress commit on a feature branch.
+              The final squash merge to main will have one clean message.
+          - level: 3
+            text: >
+              git add scripts/deploy.sh
+              git commit -m "feat: add environment logic, deploy function, prod confirmation gate"
+              git push origin feat/deploy-script
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-2-4-a
+              type: exit_code
+              description: "changes committed to branch"
+              command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh | wc -l"
+              expected_exit_code: 0
+            - id: check-2-4-b
+              type: regex_output
+              description: "at least 2 commits on deploy script"
+              command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh | wc -l"
+              pattern: "^[2-9]"
+        on_success: >
+          Version 2 committed. The script is getting real.
+          Tomorrow — make it safe.
+        on_failure: >
+          Check git status for unstaged changes.
+          Make sure you're on feat/deploy-script branch.
+
+  # ---------------------------------------------------------------------------
+  # ACT 3 — Make it Safe
+  # ---------------------------------------------------------------------------
+  - id: act-3
+    title: "Make it Safe"
+    order: 3
+
+    narrative: >
+      Thursday afternoon. Jordan sees the deploy script in the repo
+      and runs it against staging to test a config change.
+      It fails halfway through. The config file copy succeeded but
+      the service restart failed — and the script kept running anyway.
+      Staging is now in an inconsistent state: new config, old service.
+      Nothing is broken badly but nothing is working right either.
+      Alex messages you at 4:15 PM:
+      "Your script has no error handling. It failed halfway and kept
+      going. A script that continues after an error is more dangerous
+      than one that never ran. Fix it tonight. I want to see set -euo
+      pipefail, a log function, and a rollback mechanism. Tonight."
+
+    decision:
+      prompt: >
+        The script needs rollback capability. If a deployment fails
+        partway through, how does it recover?
+
+      options:
+        - id: option-g
+          label: "Backup before deploy, restore automatically on failure"
+          description: >
+            Copy current config to a .bak file before deploying.
+            If anything fails, trap the error and restore from backup.
+            Fully automated recovery.
+          consequences:
+            morale: +20
+            technical_debt: -10
+          leads_to: act-4
+          feedback: >
+            Alex reviews it Friday morning: "This is production-grade.
+            Automated rollback with a safety net. If I see this pattern
+            in your scripts for the rest of your career, I'll know
+            where you learned it." Technical debt -10.
+          future_echo: >
+            In the Docker module, you'll apply this same backup-before-change
+            pattern to image tags. In CI/CD, the pipeline has a rollback
+            stage. You built the mental model here.
+
+        - id: option-h
+          label: "Log the failure and exit cleanly — let a human decide"
+          description: >
+            On any error, log clearly what failed and exit immediately.
+            No automated recovery — a human reviews the log and decides
+            what to do next.
+          consequences:
+            morale: +5
+            technical_debt: 0
+          leads_to: act-4
+          feedback: >
+            Alex: "Conservative but honest. Automated rollback is better
+            but this is safer than continuing blindly. At least it stops."
+            Morale +5. A reasonable call, especially early in your career
+            when you're not sure what rollback should look like.
+          future_echo: >
+            In the CI/CD module, the pipeline has a manual review step
+            on failure. You'll add it instinctively because you already
+            understand the 'stop and let a human decide' philosophy.
+
+        - id: option-i
+          label: "Retry once before giving up"
+          description: >
+            If the deployment fails, wait 5 seconds and try again once.
+            If it fails again, exit.
+          consequences:
+            morale: -10
+            technical_debt: +20
+          leads_to: act-4
+          feedback: >
+            Alex: "Retrying a failed deployment without understanding
+            why it failed can make things significantly worse. What if
+            the failure left the system in a bad state? Running again
+            doubles the damage. Never retry without knowing why it failed."
+            Technical debt +20.
+          future_echo: >
+            In the CI/CD module, a flaky pipeline step causes repeated
+            retries that leave the deployment server in an inconsistent
+            state. You'll recognise the pattern and know why it's wrong.
+
+    tasks:
+      - id: task-3-1
+        title: "Add set flags and a log function"
+        order: 1
+        context: >
+          Three lines at the top of your script change everything.
+          set -e exits on any error. set -u errors on unset variables.
+          set -o pipefail catches errors in pipes. Together they make
+          your script honest — it fails loudly instead of silently.
+          A log function gives every action a timestamp and a paper trail.
+        instruction: >
+          Add immediately after the shebang line:
+          set -euo pipefail
+
+          Then add a log function before all other functions:
+          # --- Logging ---
+          LOG_FILE="/var/log/deploy.log"
+
+          log() {
+            local level=$1
+            local message=$2
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message" | tee -a "$LOG_FILE"
+          }
+
+          Replace all echo statements with log calls:
+          log "INFO" "Starting deployment..."
+          log "INFO" "Environment : $ENVIRONMENT"
+          log "ERROR" "Unknown environment '$ENVIRONMENT'"
+
+          Test it:
+          ./scripts/deploy.sh staging config/payment.cfg
+          cat /var/log/deploy.log
+        hints:
+          - level: 1
+            text: >
+              set -euo pipefail is a single line but three flags.
+              -e = exit on error, -u = error on unset var, -o pipefail = catch pipe errors.
+              Put it on line 2, right after the shebang.
+          - level: 2
+            text: >
+              tee -a writes to both stdout AND the log file simultaneously.
+              -a means append (don't overwrite). Without -a, each run
+              erases the previous log. That defeats the purpose.
+          - level: 3
+            text: >
+              After adding set -euo pipefail, test with an unset variable:
+              Create a test: echo $UNSET_VAR
+              With set -u, this will now cause the script to exit.
+              That's correct behaviour — you want to catch these.
+        xp: 70
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-1-a
+              type: file_match
+              description: "set -euo pipefail is present"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "set -euo pipefail"
+            - id: check-3-1-b
+              type: file_match
+              description: "log function is defined"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "log()"
+            - id: check-3-1-c
+              type: file_match
+              description: "log writes to file with tee"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "tee -a"
+        on_success: >
+          The script now fails loudly. Every action is logged with
+          a timestamp. Run it and then check /var/log/deploy.log —
+          the entire operation is recorded. That's the paper trail
+          Priya needs for compliance and you need for debugging.
+        on_failure: >
+          set -euo pipefail must be on its own line after #!/bin/bash.
+          Common mistake: set -e set -u as separate lines works but
+          set -euo pipefail is cleaner and standard.
+          Check log file permissions: sudo touch /var/log/deploy.log && sudo chmod 666 /var/log/deploy.log
+
+      - id: task-3-2
+        title: "Add backup and rollback with trap"
+        order: 2
+        context: >
+          A trap catches signals and errors and runs cleanup code
+          before the script exits. Combined with a backup of the
+          current config, this gives you automatic rollback —
+          if anything goes wrong, the system restores itself to
+          the last known good state.
+        instruction: >
+          Add a backup function and trap to deploy.sh:
+
+          # --- Backup and rollback ---
+          BACKUP_FILE=""
+
+          backup_config() {
+            local config=$1
+            BACKUP_FILE="${config}.bak.${TIMESTAMP}"
+            cp "$config" "$BACKUP_FILE"
+            log "INFO" "Backup created: $BACKUP_FILE"
+          }
+
+          rollback() {
+            if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
+              log "WARN" "Rolling back to: $BACKUP_FILE"
+              cp "$BACKUP_FILE" "$CONFIG_FILE"
+              log "INFO" "Rollback complete"
+            else
+              log "WARN" "No backup available for rollback"
+            fi
+          }
+
+          # --- Trap errors ---
+          trap 'log "ERROR" "Deployment failed at line $LINENO. Initiating rollback..."; rollback; exit 1' ERR
+
+          Call backup_config before deploy_config:
+          backup_config "$CONFIG_FILE"
+          deploy_config "$ENVIRONMENT" "$CONFIG_FILE" "$DEPLOY_HOST" "$DEPLOY_PATH"
+        hints:
+          - level: 1
+            text: >
+              trap 'commands' ERR runs the commands whenever any command
+              exits with a non-zero status (thanks to set -e).
+              $LINENO tells you exactly which line caused the failure.
+          - level: 2
+            text: >
+              BACKUP_FILE is a global variable set inside backup_config.
+              The trap can access it because trap runs in the same
+              shell scope as the rest of the script.
+          - level: 3
+            text: >
+              To test the trap: temporarily add a false command after
+              backup_config. false always exits with code 1.
+              Watch the trap fire and rollback execute.
+              Remove the false line after testing.
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-2-a
+              type: file_match
+              description: "backup_config function exists"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "backup_config()"
+            - id: check-3-2-b
+              type: file_match
+              description: "trap is configured for ERR"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "trap '"
+            - id: check-3-2-c
+              type: file_match
+              description: "rollback function exists"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "rollback()"
+        on_success: >
+          The script now has a safety net. If anything goes wrong
+          after the backup is created, the system restores itself.
+          This is the pattern that separates scripts engineers trust
+          from scripts engineers fear.
+        on_failure: >
+          Check trap syntax: trap 'commands' SIGNAL
+          Common signals: ERR (any error), EXIT (always on exit), INT (Ctrl+C)
+          Make sure rollback() is defined before the trap references it.
+
+      - id: task-3-3
+        title: "Commit version 3 — the safe version"
+        order: 3
+        context: >
+          This is the version Alex will review tomorrow morning.
+          The commit message should reflect that this version is
+          production-safe — that's the story this commit tells.
+        instruction: >
+          Commit version 3:
+          cd ~/prodops-chronicles
+          git add scripts/deploy.sh
+          git commit -m "feat: add error handling, logging, backup and rollback to deploy script"
+          git push origin feat/deploy-script
+        hints:
+          - level: 1
+            text: "A good commit message on a safety-focused change signals that you understand why safety matters."
+          - level: 2
+            text: >
+              Consider adding a longer commit body:
+              git commit -m "feat: add error handling..." -m "Adds set -euo pipefail, structured logging to /var/log/deploy.log, backup before deploy, and trap-based automatic rollback on error."
+          - level: 3
+            text: >
+              git add scripts/deploy.sh
+              git commit -m "feat: add error handling, logging, backup and rollback to deploy script"
+              git push origin feat/deploy-script
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-3-a
+              type: regex_output
+              description: "at least 3 commits on deploy script"
+              command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh | wc -l"
+              pattern: "^[3-9]"
+        on_success: >
+          Version 3 committed. Three commits. Three versions.
+          Each one better than the last. That's what git history
+          is supposed to look like. Tomorrow — automate the cleanup
+          and ship the final version.
+        on_failure: >
+          Check git status and git diff to see unstaged changes.
+          Make sure you're on feat/deploy-script.
+
+  # ---------------------------------------------------------------------------
+  # ACT 4 — Set it and Forget it
+  # ---------------------------------------------------------------------------
+  - id: act-4
+    title: "Set it and Forget it"
+    order: 4
+
+    narrative: >
+      Friday morning. Alex does his review. He reads the script carefully.
+      Reads the git log. Runs it against staging.
+      "This is good work. Set flags, logging, rollback. This is what
+      I wanted to see."
+      Then he opens the server metrics dashboard.
+      "Disk warning is back. 78% on /var. Did you set up logrotate
+      properly last week or just clear space?"
+      The answer depends on what you did in Module 1.
+      Either way — it needs a permanent automated fix. Today.
+
+    decision:
+      prompt: >
+        The log cleanup needs to run on a schedule. When do you
+        schedule the cron job?
+
+      options:
+        - id: option-j
+          label: "2 AM daily — low traffic, standard practice"
+          description: >
+            Run cleanup at 2 AM when the system is quietest.
+            Industry standard scheduling for maintenance tasks.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-4-tasks
+          feedback: >
+            Alex: "2 AM. Good. That's when I'd schedule it. Low traffic,
+            predictable window, easy to check logs in the morning."
+            Disk stays healthy. No performance impact during business hours.
+          future_echo: >
+            In the CI/CD module, deployment windows are scheduled at
+            off-peak hours. You'll understand why instinctively because
+            you made this decision here.
+
+        - id: option-k
+          label: "Every hour — keeps disk very clean"
+          description: >
+            Run cleanup every hour. Maximum disk hygiene.
+          consequences:
+            morale: 0
+            technical_debt: +10
+          leads_to: act-4-tasks
+          feedback: >
+            Priya notices a performance dip during business hours on
+            Friday afternoon. Traced to hourly gzip operations on active
+            log files causing I/O contention. Technical debt +10.
+            More frequent isn't always better — cron timing matters.
+          future_echo: >
+            In the Docker module, a build fails because the host is
+            under I/O load from the hourly cleanup. You'll know why
+            and know how to fix it.
+
+        - id: option-l
+          label: "Manually triggered — I'll remember to run it"
+          description: >
+            Don't schedule it. Run it manually when needed.
+          consequences:
+            morale: -15
+            technical_debt: +25
+          leads_to: act-4-tasks
+          feedback: >
+            Alex: "You won't remember. Nobody ever does. That's why
+            we automate. The entire point of this module was to stop
+            doing things manually. You've written a cleanup script
+            that you're going to run manually. That's not automation.
+            That's a shortcut with extra steps." Technical debt +25.
+          future_echo: >
+            In the CI/CD module, a deployment fails because disk is
+            full. The cleanup script exists but wasn't scheduled.
+            The root cause is this decision.
+
+    tasks:
+      - id: task-4-1
+        title: "Write the log cleanup script"
+        order: 1
+        context: >
+          The cleanup script is separate from the deploy script.
+          One script, one responsibility. It finds old log files,
+          compresses them, and logs what it did. Lean, focused,
+          safe. The same principles you applied to deploy.sh —
+          applied here in about 20 lines.
+        instruction: >
+          Create ~/prodops-chronicles/scripts/cleanup.sh:
+          #!/bin/bash
+          set -euo pipefail
+
+          # --- Configuration ---
+          LOG_DIR="/var/log"
+          MAX_AGE_DAYS=7
+          CLEANUP_LOG="/var/log/cleanup.log"
+
+          # --- Logging ---
+          log() {
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$CLEANUP_LOG"
+          }
+
+          # --- Main ---
+          log "Starting log cleanup — compressing files older than ${MAX_AGE_DAYS} days"
+
+          COMPRESSED=0
+          while IFS= read -r -d '' file; do
+            gzip "$file"
+            log "Compressed: $file"
+            ((COMPRESSED++))
+          done < <(find "$LOG_DIR" -name "*.log" -mtime "+${MAX_AGE_DAYS}" -print0 2>/dev/null)
+
+          log "Cleanup complete — $COMPRESSED files compressed"
+
+          chmod +x ~/prodops-chronicles/scripts/cleanup.sh
+          Test it:
+          sudo ~/prodops-chronicles/scripts/cleanup.sh
+          cat /var/log/cleanup.log
+        hints:
+          - level: 1
+            text: >
+              The while read loop with find -print0 handles filenames
+              with spaces safely. -print0 separates by null byte,
+              read -d '' reads until null byte. Safer than for f in $(find...).
+          - level: 2
+            text: >
+              ((COMPRESSED++)) increments the counter.
+              This is bash arithmetic syntax. Alternative: COMPRESSED=$((COMPRESSED + 1))
+          - level: 3
+            text: >
+              Test with a dry run first — comment out the gzip line
+              and just log what would be compressed. Then uncomment
+              and run for real. Always preview before executing.
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-1-a
+              type: file_match
+              description: "cleanup.sh exists"
+              path: "~/prodops-chronicles/scripts/cleanup.sh"
+              match_type: exists
+              expected: null
+            - id: check-4-1-b
+              type: file_match
+              description: "cleanup script has set -euo pipefail"
+              path: "~/prodops-chronicles/scripts/cleanup.sh"
+              match_type: contains
+              expected: "set -euo pipefail"
+            - id: check-4-1-c
+              type: file_match
+              description: "script uses find for old files"
+              path: "~/prodops-chronicles/scripts/cleanup.sh"
+              match_type: contains
+              expected: "find"
+            - id: check-4-1-d
+              type: regex_output
+              description: "cleanup script is executable"
+              command: "ls -la ~/prodops-chronicles/scripts/cleanup.sh"
+              pattern: "^-rwx"
+        on_success: >
+          The cleanup script runs. Check /var/log/cleanup.log —
+          every file it touched is logged with a timestamp.
+          On the mystery server, you cleared disk manually.
+          Now you have a script that does it for you, every night,
+          and leaves a record of exactly what it did.
+          Schedule it.
+        on_failure: >
+          Check shebang and set flags are on lines 1 and 2.
+          Check chmod: chmod +x ~/prodops-chronicles/scripts/cleanup.sh
+          Test manually: bash ~/prodops-chronicles/scripts/cleanup.sh
+
+      - id: task-4-2
+        title: "Schedule the cleanup with cron"
+        order: 2
+        context: >
+          A script that runs manually is a script that depends on
+          a human remembering to run it. Cron removes the human from
+          the loop entirely. Schedule the cleanup, verify it's scheduled,
+          and understand why cron jobs need full paths — because cron
+          runs in a minimal environment without your shell's PATH.
+        instruction: >
+          Open your crontab:
+          crontab -e
+          Add the cleanup job (runs at 2 AM daily):
+          0 2 * * * /home/prodops/prodops-chronicles/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1
+          Save and exit.
+          Verify the cron entry:
+          crontab -l
+          Understand the cron syntax:
+          0    = minute (0)
+          2    = hour (2 AM)
+          *    = any day of month
+          *    = any month
+          *    = any day of week
+          The >> appends stdout to the log.
+          2>&1 redirects stderr to stdout (both go to the log).
+        hints:
+          - level: 1
+            text: >
+              Cron syntax: minute hour day-of-month month day-of-week command
+              0 2 * * * = at minute 0 of hour 2, every day.
+              A helpful tool: crontab.guru lets you verify cron expressions.
+          - level: 2
+            text: >
+              Always use full absolute paths in cron jobs.
+              Cron runs with a minimal PATH — /usr/bin:/bin only.
+              Your script uses /usr/bin/find and /bin/gzip which are
+              in the default PATH, but the script itself needs a full path.
+          - level: 3
+            text: >
+              crontab -e opens your user's crontab in your configured editor.
+              Add the line, save, and exit.
+              Verify: crontab -l should show the entry.
+              To test immediately (don't wait for 2 AM):
+              ~/prodops-chronicles/scripts/cleanup.sh
+              Check output: cat /var/log/cleanup.log
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-2-a
+              type: regex_output
+              description: "cron entry exists for cleanup script"
+              command: "crontab -l 2>/dev/null"
+              pattern: "cleanup.sh"
+            - id: check-4-2-b
+              type: regex_output
+              description: "cron job is scheduled at 2 AM"
+              command: "crontab -l 2>/dev/null"
+              pattern: "0 2 \\* \\* \\*"
+        on_success: >
+          Scheduled. Every night at 2 AM, the disk cleans itself.
+          You won't think about it. You won't remember to run it.
+          You won't need to. That's automation.
+          Last thing — finish the deploy script and ship it.
+        on_failure: >
+          If crontab -e opens vim and you're stuck: press Esc, type :wq, press Enter.
+          If no cron daemon running: sudo systemctl start cron
+          Verify cron is running: sudo systemctl status cron
+
+      - id: task-4-3
+        title: "Finalise and review the complete deploy script"
+        order: 3
+        context: >
+          The deploy script has been built across three acts.
+          This is the final review pass — make sure it's complete,
+          clean, and tells its own story. A good script is readable
+          by someone who's never seen it before. Add a header comment.
+          Review the structure. Count the lines.
+        instruction: >
+          Add a header comment block to the top of deploy.sh
+          (after the shebang, before set flags):
+          # =============================================================================
+          # deploy.sh — Finstack Payment Config Deploy Script
+          # Usage: ./deploy.sh <environment> [config-file]
+          # Environments: staging | prod
+          # Author: [your name]
+          # Last updated: [today's date]
+          # =============================================================================
+
+          Review the complete script:
+          cat -n ~/prodops-chronicles/scripts/deploy.sh
+          Count the lines:
+          wc -l ~/prodops-chronicles/scripts/deploy.sh
+          Run a final syntax check:
+          bash -n ~/prodops-chronicles/scripts/deploy.sh
+          Run a final test:
+          ./scripts/deploy.sh staging config/payment.cfg
+        hints:
+          - level: 1
+            text: >
+              cat -n shows line numbers. wc -l counts lines.
+              bash -n checks syntax without executing — always do this
+              before sharing a script with the team.
+          - level: 2
+            text: >
+              A good script header answers: what does it do, how do you
+              use it, who wrote it, when was it last changed.
+              This is the documentation that lives with the code.
+          - level: 3
+            text: >
+              bash -n scripts/deploy.sh
+              If it returns nothing — syntax is clean.
+              If it returns errors — fix them before committing.
+              Target: under 60 lines total.
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-3-a
+              type: file_match
+              description: "script has header comment"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "deploy.sh —"
+            - id: check-4-3-b
+              type: exit_code
+              description: "script passes bash syntax check"
+              command: "bash -n ~/prodops-chronicles/scripts/deploy.sh"
+              expected_exit_code: 0
+            - id: check-4-3-c
+              type: regex_output
+              description: "script is under 70 lines"
+              command: "wc -l < ~/prodops-chronicles/scripts/deploy.sh"
+              pattern: "^[1-6][0-9]$"
+        on_success: >
+          Clean. Under 70 lines. Documented. Syntax-verified.
+          This script does one thing and does it safely.
+          That's the Unix philosophy. That's the job.
+          Commit the final version and ship it.
+        on_failure: >
+          bash -n showing errors? Read the error message carefully —
+          it tells you the line number and the problem.
+          Common issues: unclosed if/fi, unclosed case/esac, missing ;;
+
+      - id: task-4-4
+        title: "Merge the deploy script to main"
+        order: 4
+        context: >
+          The script is done. The cron job is scheduled. The disk is
+          managed. Time to merge the feature branch to main via PR —
+          the same way you shipped the hotfix. The process doesn't
+          change just because it's a script instead of a config file.
+        instruction: >
+          Commit the final version and merge to main:
+          cd ~/prodops-chronicles
+          git add scripts/deploy.sh scripts/cleanup.sh
+          git commit -m "feat: complete deploy script with error handling, logging, rollback"
+          git push origin feat/deploy-script
+          gh pr create \
+            --title "feat: payment config deploy script" \
+            --body "## What\nAutomated deploy script for payment config across staging and prod.\n\n## Features\n- Argument validation\n- Environment-aware behaviour\n- Production confirmation gate\n- set -euo pipefail error handling\n- Structured logging to /var/log/deploy.log\n- Backup and automatic rollback on failure\n\n## Also includes\nLog cleanup script scheduled via cron at 2 AM daily.\n\n## Replaces\nJamie's manual deploy doc (12 steps, 2 of which are ???)" \
+            --base main
+          gh pr merge --squash --delete-branch
+          git checkout main && git pull
+        hints:
+          - level: 1
+            text: "The PR description is your documentation. Future you will read this."
+          - level: 2
+            text: >
+              Note what this replaces in the PR body. Context matters.
+              'Replaces Jamie's manual deploy doc' tells the whole story
+              in five words.
+          - level: 3
+            text: >
+              git add scripts/
+              git commit -m "feat: complete deploy and cleanup scripts"
+              git push origin feat/deploy-script
+              gh pr create --title "feat: payment config deploy script" --base main
+              gh pr merge --squash --delete-branch
+              git checkout main && git pull
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-4-a
+              type: exit_code
+              description: "PR is merged"
+              command: "gh pr list --state merged --head feat/deploy-script --repo $(gh api user --jq '.login')/prodops-chronicles"
+              expected_exit_code: 0
+            - id: check-4-4-b
+              type: regex_output
+              description: "on main branch"
+              command: "git -C ~/prodops-chronicles branch --show-current"
+              pattern: "^main$"
+            - id: check-4-4-c
+              type: file_match
+              description: "deploy.sh exists on main"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: exists
+              expected: null
+        on_success: >
+          Merged. On main. In the repo. Version controlled.
+
+          Alex's message arrives at 4:47 PM:
+          "You started this week manually running the same commands
+          over and over. You're ending it with a script that runs
+          itself, logs everything, and cleans up after itself.
+          That's the job. Automation isn't laziness — it's how you
+          scale yourself beyond what your hands can do.
+
+          Good week."
+
+          prodops sync before you log off.
+          You've earned the green square.
+        on_failure: >
+          Check PR status: gh pr view
+          Check branch: git branch
+          Check remote: git push origin feat/deploy-script
+
+      - id: task-4-5
+        title: "prodops sync"
+        order: 5
+        context: >
+          End of week. Three modules complete. Sync your progress
+          before you log off. The repo you built in Module 2 is
+          doing its job — tracking your journey.
+        instruction: >
+          Sync your progress:
+          prodops sync
+          Check the result on GitHub:
+          gh repo view prodops-chronicles --web
+        hints:
+          - level: 1
+            text: "prodops sync uses the SSH key and remote you configured in Module 2."
+          - level: 2
+            text: >
+              If sync fails: prodops status to check platform health.
+              gh auth status to verify GitHub auth.
+              ssh -T git@github.com to verify SSH.
+          - level: 3
+            text: >
+              prodops sync
+              gh repo view prodops-chronicles --web
+              Navigate to .prodops/progress/ to see your progress snapshot.
+        xp: 30
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-5-a
+              type: exit_code
+              description: "prodops sync runs successfully"
+              command: "prodops sync"
+              expected_exit_code: 0
+        on_success: >
+          Synced. Week one complete.
+
+          Three modules. Three Fridays worth of learning compressed
+          into one week at Finstack. A mystery server tamed.
+          A git environment built from scratch. A deploy script
+          that replaced twelve manual steps and a Google Doc
+          with two question marks in it.
+
+          Next week — Docker. The deploy script you just built
+          will need to build and push a container image.
+          You'll be glad you wrote it properly.
+        on_failure: >
+          Check prodops status.
+          Check gh auth status.
+          Check ssh -T git@github.com.
+
+# -----------------------------------------------------------------------------
+# 4. ENDINGS
+# -----------------------------------------------------------------------------
+endings:
+
+  - id: ending-automated
+    title: "Automated"
+    type: success
+    conditions:
+      morale: ">= 75"
+      technical_debt: "< 30"
+
+    narrative: >
+      Friday 5:00 PM. You close your laptop.
+
+      In your repo: a deploy script under 70 lines that handles
+      argument validation, environment switching, production confirmation,
+      structured logging, backup and automatic rollback. A cleanup script
+      that runs itself every night at 2 AM. A git history that tells
+      the story of how both were built, commit by commit.
+
+      In Slack: Alex's message from 4:47 PM still on screen.
+      "Good week."
+
+      In the ops channel: someone has unpinned Jamie's deploy doc.
+      Nobody said anything. It just happened.
+
+      Next week is Docker. The script you built will need to build
+      and push a container image. You'll be ready.
+
+    score_modifier: 1.0
+
+    post_mortem: >
+      Automation is not about being lazy. It's about being consistent.
+      A manual process run a hundred times will have a hundred slightly
+      different outcomes. An automated process run a hundred times will
+      have one outcome, logged, every time. The best scripts do one thing,
+      fail loudly when something goes wrong, leave a trail, and restore
+      the system to a known state when they fail. Every principle in this
+      module — set -euo pipefail, logging, backup, rollback, cron timing
+      — exists because someone, somewhere, learned it the hard way.
+      Now you know it the easy way.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +20
+      yearly_review_flags: []
+
+    future_references:
+      - module: docker
+        callback: >
+          The deploy script is extended in Module 4 to build and push
+          a Docker image before deploying config. The structure you
+          built here makes the extension natural.
+      - module: ci-cd
+        callback: >
+          The CI/CD pipeline in Module 5 is a direct evolution of the
+          deploy script. Every stage in the pipeline maps to a function
+          in deploy.sh. You'll recognise the pattern immediately.
+
+  - id: ending-works-on-my-machine
+    title: "It Works on My Machine"
+    type: partial
+    conditions:
+      morale: ">= 45"
+      technical_debt: "< 60"
+
+    narrative: >
+      Friday 5:30 PM. The script works. The cron job is scheduled.
+      The PR is merged. You got there.
+
+      But the cleanup is running every hour instead of at 2 AM.
+      Priya noticed a performance dip during the afternoon.
+      The deploy script doesn't have automatic rollback.
+      Alex reviewed it and said "it'll do for now."
+
+      "It'll do for now" is not the same as "good work."
+      There's a difference and you know it.
+
+      Monday is Docker. Some of the debt you've accumulated will
+      surface there. You'll handle it.
+
+    score_modifier: 0.75
+
+    post_mortem: >
+      A working script and a safe script are two different things.
+      A script that works on your machine, in your environment,
+      when you run it correctly — that's a starting point, not a finish.
+      Error handling, rollback, and correct scheduling are not optional
+      extras. They're the difference between a script and a production tool.
+      Technical debt in automation compounds. A missing rollback in the
+      deploy script becomes an incident in the Docker module.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - flag: "bash-module-partial"
+          severity: minor
+          note: >
+            Deploy script missing rollback capability. Cron job
+            scheduled sub-optimally causing I/O contention.
+            Script functional but not production-grade.
+          can_be_offset_by:
+            - docker
+            - ci-cd
+
+    future_references:
+      - module: docker
+        callback: >
+          A build fails during peak hours because of I/O contention
+          from the hourly cleanup cron. Root cause is this module.
+          You'll know why and know how to fix it.
+
+  - id: ending-technical-debt-collector
+    title: "Technical Debt Collector"
+    type: low_score
+    conditions:
+      morale: "< 45"
+      technical_debt: ">= 60"
+
+    narrative: >
+      Friday 6:15 PM. You're still at your desk.
+
+      Jordan ran the script without arguments this afternoon. No
+      validation, no default — it deployed staging config to prod
+      via a silent default. Twenty minutes of cleanup. An incident
+      report. Alex was not in the room for the cleanup but he
+      read the incident report. Priya asked for a 1:1 on Monday.
+
+      The cron job isn't scheduled. The rollback isn't implemented.
+      The script works — when run correctly, by someone who knows
+      how to use it. Which is almost the same as the Google Doc
+      it was supposed to replace.
+
+      Priya's message at 6:00 PM:
+      "Let's sync Monday morning. Nothing urgent — just want to
+      make sure we set you up for success going forward."
+
+      The yearly review is five modules away.
+      Modules 4 and 5 are opportunities to change the narrative.
+      Use them.
+
+    score_modifier: 0.5
+
+    post_mortem: >
+      Automation that requires perfect human operation isn't automation —
+      it's a complicated manual process. The entire point of writing a
+      script is to remove the human error vector. A script without
+      argument validation, without error handling, without rollback,
+      and without a schedule is a script that will cause an incident
+      the first time conditions are less than ideal. Which is always
+      eventually. Every safety mechanism that wasn't built here will
+      be built reactively, after something breaks.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: -10
+      yearly_review_flags:
+        - flag: "bash-module-low-score"
+          severity: moderate
+          note: >
+            Staging config deployed to prod due to missing argument
+            validation. Incident report filed. Deploy script missing
+            error handling and rollback. Cron job not scheduled.
+            Automation goal not achieved — manual process remains.
+          can_be_offset_by:
+            - docker
+            - ci-cd
+
+    future_references:
+      - module: docker
+        callback: >
+          Disk fills up before a Docker build because the cleanup
+          script was never scheduled. The root cause is this module.
+      - module: ci-cd
+        callback: >
+          The same prod deployment incident recurs during CI/CD setup
+          because the safety patterns were never established.
+
+# -----------------------------------------------------------------------------
+# 5. PROGRESS TRACKING
+# -----------------------------------------------------------------------------
+progress:
+  schema_version: 1
+  tracked_fields:
+    - field: acts_completed
+      type: array
+    - field: decisions_made
+      type: map
+    - field: tasks_completed
+      type: array
+    - field: ending_reached
+      type: string
+    - field: final_score
+      type: integer
+    - field: xp_earned
+      type: integer
+    - field: tracker_final_state
+      type: map
+    - field: replays
+      type: integer
+    - field: decision_history
+      type: array
+    - field: performance_impact
+      type: map
+    - field: yearly_review_flags
+      type: array
+
+# -----------------------------------------------------------------------------
+# 6. COMMUNITY CONTRIBUTIONS
+# -----------------------------------------------------------------------------
+community:
+  contributions_enabled: true
+  contribution_schema_version: 1
