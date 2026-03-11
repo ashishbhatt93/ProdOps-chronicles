@@ -1,0 +1,1992 @@
+# =============================================================================
+# PRODOPS CHRONICLES --- MODULE 04: DOCKER
+# Schema Version: 1.0
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. MODULE METADATA
+# -----------------------------------------------------------------------------
+module:
+  id: docker
+  name: "Docker"
+  version: "1.0.0"
+  pod: prodops-docker
+  order: 4
+  mode: beginner
+  runtime: docker-compose
+  tags:
+    - docker
+    - containers
+    - dockerfile
+    - registry
+    - images
+    - devops
+
+  description: >
+    Monday of week two. The payment dashboard is getting a proper release
+    process — no more copying files to servers. Jordan has already written
+    a Dockerfile. It builds. It runs. It's wrong in four specific ways you'll
+    discover across the module. Fix each one, understand why it matters, spin
+    up a local registry, push to Docker Hub, and extend your deploy script to
+    automate the whole thing. Learn Docker the way engineers actually learn it:
+    inheriting someone else's work and making it production-grade.
+
+  unlock:
+    requires: bash-scripting
+    score_threshold: 80
+
+# -----------------------------------------------------------------------------
+# 2. CHRONICLE
+# -----------------------------------------------------------------------------
+chronicle:
+  title: "Ship the App"
+  tagline: "It builds locally. Now make it production-grade."
+
+  setting: >
+    It's Monday of week two at Finstack. You've fixed the mystery server,
+    set up a professional git environment, and shipped a production-ready
+    deploy script. Alex has been watching and is satisfied enough to give
+    you something real. The payment dashboard — the app you and Jordan
+    hotfixed last Tuesday — is getting a proper containerised release
+    process. No more copying config files to servers by hand. Everything
+    ships as a Docker image from now on. Jordan spent Friday afternoon
+    Dockerising the app. They're proud of it. They pushed it directly
+    to main before anyone could review it. Classic Jordan.
+
+  incident: >
+    9:05 AM. Alex's message lands in Slack:
+
+    "Morning. Jordan pushed a Dockerfile for the dashboard on Friday.
+    It builds. It runs. Before you touch anything else today — pull it,
+    run it, read it. Tell me what's wrong with it. I'll know if you
+    just say 'nothing' and I'll know if you actually looked.
+    Also — we need a local registry up before any images go anywhere.
+    And you need a Docker Hub account before EOD. We're pushing to
+    both. Start with the registry."
+
+    Three tasks before you touch Jordan's code.
+    Let's start with getting the infrastructure in place.
+
+  role: "Junior SRE"
+  team:
+    - name: "Alex"
+      role: "Senior SRE"
+      personality: >
+        Still watching. More interested now. The deploy script impressed
+        him — not that he said it directly. Asking you to audit Jordan's
+        Dockerfile before touching it is a test of your instincts, not
+        just your knowledge. He'll review your PR at the end of the week.
+        His standard: would this run safely in production on a payment system?
+    - name: "Priya"
+      role: "Engineering Manager"
+      personality: >
+        Aware that the containerisation work is happening. Interested in
+        the outcome because it reduces deployment risk and makes Finstack
+        audit-ready. Will ask for a status update Tuesday morning.
+        Her question will be: "Is it safe?" Not "does it work?"
+    - name: "Jordan"
+      role: "Junior SRE"
+      personality: >
+        Proud of the Dockerfile. Moved fast on Friday and pushed to main
+        without a review — not maliciously, just Jordan being Jordan.
+        Will be watching how you handle critiquing their work. If you do
+        it well, they'll learn from you. If you do it badly, the team
+        dynamic suffers. There's a right way to do this.
+    - name: "Jamie"
+      role: "Former SRE (offboarded)"
+      personality: >
+        Their Docker Hub credentials are still sitting in ~/.docker/config.json.
+        Expired. But there. Just like the cron jobs and the deploy doc and
+        the mystery server. Jamie's ghost keeps showing up.
+
+  stakes: >
+    The payment dashboard is a customer-facing application. Any image
+    pushed to the registry becomes a candidate for deployment. An image
+    that runs as root is a security liability on a payment platform.
+    An image with secrets baked into its layers is a compliance incident
+    waiting to be discovered. An unpinned base image breaks silently
+    on the next upstream release. And an 800MB image that takes three
+    minutes to pull during an incident is three minutes of downtime
+    nobody had budgeted for. Getting containerisation right here sets
+    the standard for every service Finstack ships after this.
+
+  trackers:
+    morale:
+      initial: 100
+      min: 0
+      max: 100
+    technical_debt:
+      initial: 0
+      min: 0
+      max: 100
+    performance_score:
+      initial: 0
+      min: -50
+      max: 100
+
+# -----------------------------------------------------------------------------
+# 3. ACTS
+# -----------------------------------------------------------------------------
+acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 1 — Get in the Door
+  # ---------------------------------------------------------------------------
+  - id: act-1
+    title: "Get in the Door"
+    order: 1
+
+    narrative: >
+      Before any images get built or pushed, two things need to exist:
+      a local registry to work against while you learn, and a clean
+      authenticated Docker environment. You open ~/.docker/config.json
+      to check what's there before running docker login.
+      There's an entry already. Base64-encoded credentials for
+      jamie@finstack.io. Expired Docker Hub token. Jamie's.
+      Of course there is.
+      Clear it. Start clean. Then get the registry up.
+
+    decision:
+      prompt: >
+        You've cleared Jamie's credentials and logged in fresh. The local
+        registry is running. You pull Jordan's image and run it. It works —
+        the dashboard loads on port 3000. Alex messages:
+        "Good. Now tell me what's wrong with it. Look at the Dockerfile
+        before you answer." You open the file. What do you lead with?
+
+      options:
+        - id: option-a
+          label: "The base image — ubuntu:latest is wrong"
+          description: >
+            The Dockerfile starts with FROM ubuntu:latest. For a Node app
+            that's a full OS you don't need, unpinned, and rebuilds will
+            break silently when Ubuntu releases a new version.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-2-path-diagnosed
+          feedback: >
+            Alex replies immediately: "Good. That's the first thing I see too.
+            What else?" You list the layer order and the missing .dockerignore.
+            Alex: "You read it properly. Fix the base image first. Show me
+            the size difference when you're done."
+            Jordan is in the channel and sees the exchange. They go quiet
+            for a few minutes. Then: "...huh. I didn't think about that."
+          future_echo: >
+            In Act 2, you'll fix the base image and the layer ordering
+            together. Jordan will watch and ask questions. The working
+            relationship holds because you diagnosed correctly instead
+            of just saying "your Dockerfile is bad."
+
+        - id: option-b
+          label: "Nothing obvious — it runs fine"
+          description: >
+            It builds and the app loads. You can see it working. Hard to
+            say what's wrong without running it in production.
+          consequences:
+            morale: -5
+            technical_debt: +15
+          leads_to: act-2-path-guided
+          feedback: >
+            Alex: "Run: docker images. Tell me how big it is."
+            The image is 947MB. Alex: "A payment dashboard is 947 megabytes.
+            Think about what that means for a pull during an incident.
+            Look at the base image. Look at the layer order. Look at
+            what's being copied in. Then come back to me."
+            Technical debt +15. You'll need to be walked through
+            what to fix instead of driving it yourself.
+          future_echo: >
+            In Act 2, Alex will surface each problem for you rather than
+            you surfacing it for him. The fixes are the same — the dynamic
+            is different.
+
+        - id: option-c
+          label: "I'd rewrite it from scratch"
+          description: >
+            Jordan's Dockerfile has too many issues. Faster to start fresh
+            than to fix a broken foundation.
+          consequences:
+            morale: -5
+            technical_debt: +10
+          leads_to: act-2-path-guided
+          feedback: >
+            Alex: "That's not a diagnosis. What specifically is wrong with
+            Jordan's file? 'Rewrite it' isn't a code review. Jordan worked
+            on this Friday afternoon. They deserve a proper answer."
+            Technical debt +10. Jordan is watching this conversation.
+            The relationship takes a small hit.
+          future_echo: >
+            Jordan brings this up briefly in Act 3 — "so what was actually
+            wrong with my version?" You'll have a better answer by then.
+
+    tasks:
+      - id: task-1-1
+        title: "Inspect and clear existing Docker credentials"
+        order: 1
+        context: >
+          Before running docker login, check what's already in the
+          credentials store. Jamie's expired token is sitting in
+          ~/.docker/config.json. Find it, understand what it is,
+          and remove it before adding your own. This is the same
+          habit you built with SSH keys — know what's on the machine
+          before you add to it.
+        instruction: >
+          Check the existing Docker config:
+          cat ~/.docker/config.json
+
+          You'll see Jamie's expired credentials. Remove them by
+          clearing the auths section:
+          docker logout
+
+          Verify the credentials are cleared:
+          cat ~/.docker/config.json
+
+          The auths section should now be empty or the file minimal.
+        hints:
+          - level: 1
+            text: >
+              docker logout clears credentials for the default registry
+              (Docker Hub). It's the clean way to reset authentication state.
+          - level: 2
+            text: >
+              If docker logout doesn't fully clear it, you can view and
+              manually edit: cat ~/.docker/config.json
+              The auths block holds base64-encoded credentials per registry.
+          - level: 3
+            text: >
+              cat ~/.docker/config.json
+              docker logout
+              cat ~/.docker/config.json
+              The auths section should be empty: "auths": {}
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-1-a
+              type: exit_code
+              description: "docker config file is accessible"
+              command: "cat ~/.docker/config.json 2>/dev/null || echo '{}'"
+              expected_exit_code: 0
+            - id: check-1-1-b
+              type: regex_output
+              description: "no credentials for docker.io remain"
+              command: "cat ~/.docker/config.json 2>/dev/null || echo '{\"auths\":{}}'"
+              pattern: "\"auths\"\\s*:\\s*\\{\\s*\\}"
+              flags: multiline
+        on_success: >
+          Clean slate. Jamie's credentials are gone.
+          Whatever you set up now will be yours alone.
+          Now get the local registry running.
+        on_failure: >
+          Try: docker logout registry-1.docker.io
+          Or manually: echo '{"auths":{}}' > ~/.docker/config.json
+          Then verify: cat ~/.docker/config.json
+
+      - id: task-1-2
+        title: "Spin up the local private registry"
+        order: 2
+        context: >
+          Before pushing to Docker Hub you'll work against a local
+          registry. This teaches you what a registry actually is — not
+          magic, just an API endpoint that stores and serves image layers.
+          The official registry image spins up in under 30 seconds.
+          Once you understand what a registry is, Docker Hub stops
+          feeling like a black box.
+        instruction: >
+          Pull and run the official registry image:
+          docker run -d \
+            --name prodops-registry \
+            --restart=unless-stopped \
+            -p 5000:5000 \
+            -v prodops-registry-data:/var/lib/registry \
+            registry:2
+
+          Verify it's running:
+          docker ps --filter name=prodops-registry
+
+          Test the registry API — a healthy registry returns {}:
+          curl -s http://localhost:5000/v2/
+
+          List the registry catalog (empty for now):
+          curl -s http://localhost:5000/v2/_catalog
+        hints:
+          - level: 1
+            text: >
+              registry:2 is the official Docker registry image. Port 5000
+              is the standard registry port. The -v flag persists image
+              data between container restarts.
+          - level: 2
+            text: >
+              curl http://localhost:5000/v2/ returns {} when the registry
+              is healthy. That's the Registry API v2 version endpoint.
+              Any other response (or connection refused) means it's not ready.
+          - level: 3
+            text: >
+              docker run -d --name prodops-registry -p 5000:5000 registry:2
+              docker ps --filter name=prodops-registry
+              curl -s http://localhost:5000/v2/
+              Expected: {}
+        xp: 40
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-2-a
+              type: exit_code
+              description: "prodops-registry container is running"
+              command: "docker ps --filter name=prodops-registry --filter status=running -q"
+              expected_exit_code: 0
+            - id: check-1-2-b
+              type: regex_output
+              description: "registry container shows as running"
+              command: "docker ps --filter name=prodops-registry --format '{{.Status}}'"
+              pattern: "^Up"
+            - id: check-1-2-c
+              type: regex_output
+              description: "registry API responds with empty JSON"
+              command: "curl -s http://localhost:5000/v2/"
+              pattern: "^\\{\\}$"
+        on_success: >
+          Registry is running. The API is responding.
+          You now have a fully functional private Docker registry
+          on localhost:5000. Push something to it and it persists.
+          Pull from it and it serves layers like any registry would.
+          Docker Hub is the same thing — just hosted, with auth.
+        on_failure: >
+          If port 5000 is in use: docker run -d --name prodops-registry -p 5001:5000 registry:2
+          If container failed to start: docker logs prodops-registry
+          If curl returns connection refused: wait 5 seconds and retry —
+          the registry takes a moment to initialise.
+
+      - id: task-1-3
+        title: "Build Jordan's Dockerfile and inspect the result"
+        order: 3
+        context: >
+          The Dockerfile Jordan wrote is in the payment-dashboard directory.
+          Build it, run it, verify it works — then start reading what you
+          actually built. docker images, docker history, docker inspect.
+          Before you can fix something you need to understand it completely.
+          This is the audit step.
+        instruction: >
+          The payment dashboard source is in ~/finstack/payment-dashboard/.
+          Build Jordan's image:
+          cd ~/finstack/payment-dashboard
+          docker build -t finstack-dashboard:jordan .
+
+          Verify the app runs:
+          docker run -d --name dashboard-test -p 3000:3000 finstack-dashboard:jordan
+          curl -s http://localhost:3000/health
+
+          Now audit what you built:
+          docker images finstack-dashboard:jordan
+          docker history finstack-dashboard:jordan
+          docker inspect finstack-dashboard:jordan | grep -A5 '"Config"'
+
+          Note the image size. Note the number of layers.
+          Note what user the container runs as.
+          Stop the test container when done:
+          docker stop dashboard-test && docker rm dashboard-test
+        hints:
+          - level: 1
+            text: >
+              docker build -t name:tag . builds from the Dockerfile in the
+              current directory. The -t flag sets the image name and tag.
+          - level: 2
+            text: >
+              docker history shows every layer in the image — what command
+              created it and how much space it adds.
+              docker inspect shows the full image configuration as JSON.
+          - level: 3
+            text: >
+              After building, run: docker images finstack-dashboard:jordan
+              Look at the SIZE column.
+              Run: docker history finstack-dashboard:jordan
+              Count the layers. Note which ones are largest.
+              Run: docker run --rm finstack-dashboard:jordan whoami
+              Note the output carefully.
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-1-3-a
+              type: exit_code
+              description: "finstack-dashboard:jordan image exists"
+              command: "docker image inspect finstack-dashboard:jordan"
+              expected_exit_code: 0
+            - id: check-1-3-b
+              type: exit_code
+              description: "image has been built (appears in docker images)"
+              command: "docker images finstack-dashboard:jordan -q"
+              expected_exit_code: 0
+        on_success: >
+          Image built and inspected. You've seen the size.
+          You've seen the layers. You've seen what user it runs as.
+          Now go tell Alex what's wrong with it.
+        on_failure: >
+          If build fails: check that you're in the right directory (cd ~/finstack/payment-dashboard)
+          Verify Dockerfile exists: ls -la Dockerfile
+          Check build output for specific errors: docker build -t finstack-dashboard:jordan . 2>&1
+
+# -----------------------------------------------------------------------------
+# 4. BRANCH ACTS
+# -----------------------------------------------------------------------------
+branch_acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 2 PATH A — Fix the Foundation (diagnosed correctly)
+  # ---------------------------------------------------------------------------
+  - id: act-2-path-diagnosed
+    title: "Fix the Foundation"
+    order: 2
+    branch_of: act-1
+    branch_option: option-a
+
+    narrative: >
+      Alex acknowledged your diagnosis. Jordan went quiet for a few minutes,
+      then: "Okay. Show me." That's the right response — they want to learn,
+      not defend. You have two problems to fix in this act: the base image
+      and the layer order. Fix both together while Jordan watches.
+      The Dockerfile currently looks like this:
+
+      FROM ubuntu:latest
+      RUN apt-get update
+      RUN apt-get install -y nodejs npm
+      COPY . .
+      RUN npm install
+      RUN npm run build
+      EXPOSE 3000
+      CMD ["node", "server.js"]
+
+      Two problems visible immediately. Fix them.
+
+    decision:
+      prompt: >
+        While fixing the base image you spot the layer ordering problem:
+        COPY . . happens before npm install, which means every code change
+        — even a one-line comment — invalidates the npm cache and triggers
+        a full re-install. Do you fix this now while you're already in
+        the file, or stay focused on the base image only and open a ticket
+        for the layer order?
+
+      options:
+        - id: option-a1
+          label: "Fix both — layer order while I'm already in here"
+          description: >
+            You're already editing the Dockerfile. The layer order fix
+            is two moved lines. Fix the root when you're already digging.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-3
+          feedback: >
+            Alex: "Good instinct. You were already in the file. Two moved
+            lines. The ticket would have sat for two weeks and every build
+            in between would have been slower than it needed to be."
+            Jordan: "Wait — moving those two lines makes the cache work
+            better? That's... actually clever."
+          future_echo: >
+            In Act 4, the clean layer order means your builds are fast.
+            No unnecessary npm installs on code-only changes. The CI/CD
+            pipeline in Module 5 will thank you for this.
+
+        - id: option-a2
+          label: "Base image only — stay focused, ticket the rest"
+          description: >
+            Fix one thing at a time. Base image is the priority.
+            Open a GitHub issue for the layer order problem and
+            address it in a separate PR.
+          consequences:
+            morale: 0
+            technical_debt: +10
+          leads_to: act-3
+          feedback: >
+            Alex: "The ticket will sit there. You were already in the file."
+            Technical debt +10. The base image fix ships. The layer order
+            problem persists — every build on this image re-runs npm install
+            from scratch on any code change. Slow and wasteful.
+          future_echo: >
+            In Act 4, every docker build takes longer than it should because
+            npm cache is invalidated on every change. You'll notice it.
+            The issue is still open in GitHub.
+
+    tasks:
+      - id: task-2a-1
+        title: "Switch to a purpose-built, pinned base image"
+        order: 1
+        context: >
+          ubuntu:latest is a full operating system. Your Node app needs
+          Node and npm — not systemd, not apt, not 70MB of Ubuntu toolchain.
+          node:18-alpine is purpose-built for Node applications: Alpine Linux
+          base, Node pre-installed, pinned to a specific version.
+          Replace the base image. Rebuild. Observe the difference.
+        instruction: >
+          Edit the Dockerfile:
+          cd ~/finstack/payment-dashboard
+          Open Dockerfile and change line 1:
+          FROM ubuntu:latest
+          to:
+          FROM node:18-alpine
+
+          Remove the manual Node install lines (no longer needed):
+          Remove: RUN apt-get update
+          Remove: RUN apt-get install -y nodejs npm
+
+          Build the updated image:
+          docker build -t finstack-dashboard:v0.2 .
+
+          Compare sizes:
+          docker images | grep finstack-dashboard
+
+          Verify it still works:
+          docker run --rm -p 3000:3000 finstack-dashboard:v0.2 &
+          sleep 3 && curl -s http://localhost:3000/health
+          kill %1 2>/dev/null || true
+        hints:
+          - level: 1
+            text: >
+              node:18-alpine already has Node 18 installed. You don't need
+              the apt-get lines anymore — removing them reduces layers too.
+          - level: 2
+            text: >
+              alpine images use apk instead of apt. If you need additional
+              packages in future, use: RUN apk add --no-cache packagename
+              The --no-cache flag prevents apk from caching index files,
+              keeping the image lean.
+          - level: 3
+            text: >
+              The size drop will be significant: ubuntu:latest + node + npm
+              is typically 500-900MB. node:18-alpine is around 130-170MB.
+              docker images | grep finstack-dashboard shows both versions
+              side by side so you can see the difference clearly.
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-2a-1-a
+              type: exit_code
+              description: "finstack-dashboard:v0.2 image exists"
+              command: "docker image inspect finstack-dashboard:v0.2"
+              expected_exit_code: 0
+            - id: check-2a-1-b
+              type: regex_output
+              description: "new image uses alpine base"
+              command: "docker inspect finstack-dashboard:v0.2 --format '{{.Config.Image}}' 2>/dev/null || docker history finstack-dashboard:v0.2 | tail -1"
+              pattern: "alpine|node:18"
+            - id: check-2a-1-c
+              type: regex_output
+              description: "image is significantly smaller than jordan's version"
+              command: "docker inspect finstack-dashboard:v0.2 --format '{{.Size}}'"
+              pattern: "^[0-9]+"
+        on_success: >
+          Look at the size difference. That's not padding or bloat you
+          removed — it's an entire operating system you didn't need.
+          Every megabyte you don't ship is a megabyte you don't have to
+          pull, store, scan, or secure. Jordan is watching. They get it now.
+        on_failure: >
+          Check Dockerfile line 1 is exactly: FROM node:18-alpine
+          Make sure you removed the apt-get lines — they'll fail on Alpine.
+          Build errors? Check: docker build -t finstack-dashboard:v0.2 . 2>&1
+
+      - id: task-2a-2
+        title: "Fix the layer order for correct cache behaviour"
+        order: 2
+        context: >
+          Docker builds images layer by layer. Each instruction is a layer.
+          When a layer changes, every layer after it is invalidated and
+          rebuilt from scratch. COPY . . copies all your source code —
+          including server.js, which changes every time you fix a typo.
+          Putting npm install after COPY . . means every code change
+          triggers a full dependency re-install. Move the dependency
+          installation to before the code copy and the cache works correctly.
+        instruction: >
+          Reorder the Dockerfile so dependencies are installed before
+          application code is copied:
+
+          FROM node:18-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY . .
+          RUN npm run build
+          EXPOSE 3000
+          CMD ["node", "server.js"]
+
+          Key change: COPY package*.json first, then npm ci, then COPY . .
+          npm ci is preferred over npm install in containers — it installs
+          exactly what package-lock.json specifies, no surprises.
+
+          Build twice to verify caching works:
+          docker build -t finstack-dashboard:v0.3 .
+          touch src/app.js
+          docker build -t finstack-dashboard:v0.3 .
+
+          The second build should show "CACHED" for the npm ci layer.
+        hints:
+          - level: 1
+            text: >
+              Docker caches each layer. A layer is only rebuilt if its
+              instruction changes OR any earlier layer changed.
+              package.json changes rarely. src/app.js changes often.
+              Separate them — copy the rarely-changing files first.
+          - level: 2
+            text: >
+              npm ci vs npm install:
+              npm ci reads package-lock.json exactly and fails if it's
+              out of sync with package.json. Reproducible, deterministic.
+              npm install resolves versions and updates package-lock.json.
+              Never use npm install in a Dockerfile.
+          - level: 3
+            text: >
+              After the reorder, test the cache:
+              docker build -t finstack-dashboard:v0.3 .    # first build, no cache
+              echo "// comment" >> src/app.js              # change code, not deps
+              docker build -t finstack-dashboard:v0.3 .    # second build
+              You should see "CACHED" next to the npm ci step.
+              That's the cache working correctly.
+        xp: 70
+        verification:
+          strategy: all
+          checks:
+            - id: check-2a-2-a
+              type: exit_code
+              description: "finstack-dashboard:v0.3 image exists"
+              command: "docker image inspect finstack-dashboard:v0.3"
+              expected_exit_code: 0
+            - id: check-2a-2-b
+              type: regex_output
+              description: "Dockerfile copies package.json before full source"
+              command: "grep -n 'COPY' ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "package"
+            - id: check-2a-2-c
+              type: regex_output
+              description: "Dockerfile uses npm ci not npm install"
+              command: "cat ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "npm ci"
+        on_success: >
+          Layer order fixed. Run the build twice and watch the second run.
+          When your code changes and dependencies haven't, the npm ci step
+          shows CACHED. That's minutes saved on every build for the lifetime
+          of this project. Jordan: "I didn't know Docker caching worked like that."
+          Now you both do.
+        on_failure: >
+          Make sure the order in your Dockerfile is exactly:
+          1. FROM node:18-alpine
+          2. WORKDIR /app
+          3. COPY package*.json ./
+          4. RUN npm ci --only=production
+          5. COPY . .
+          Check: cat ~/finstack/payment-dashboard/Dockerfile
+
+  # ---------------------------------------------------------------------------
+  # ACT 2 PATH B — Fix the Foundation (guided by Alex)
+  # ---------------------------------------------------------------------------
+  - id: act-2-path-guided
+    title: "Fix the Foundation"
+    order: 2
+    branch_of: act-1
+    branch_option: option-b
+
+    narrative: >
+      Alex showed you the size. 947MB. Now he's walking you through the
+      Dockerfile line by line in Slack. Not ideal — this is time Alex
+      didn't plan to spend. But he's thorough when he commits.
+      "Line 1. FROM ubuntu:latest. Why ubuntu? What does your Node app
+      actually need?" You read the line again. Oh.
+
+    decision:
+      prompt: >
+        Alex has pointed out the base image problem. While you're switching
+        it he also mentions: "Look at the COPY order. What happens to the
+        npm cache when you change a line of JavaScript?" Do you fix the
+        layer order now too, or focus on what Alex directly told you to fix?
+
+      options:
+        - id: option-b1
+          label: "Fix both — I see the layer issue now"
+          description: >
+            Alex pointed you at it. You understand it. Fix both while
+            you're already in the file.
+          consequences:
+            morale: +5
+            technical_debt: 0
+          leads_to: act-3
+          feedback: >
+            Alex: "Good. You took the hint and ran with it. That's what
+            I want to see." Morale +5. Technical debt doesn't accumulate
+            further. You got there — just needed the nudge.
+          future_echo: >
+            In Act 4, builds are fast because the cache is correct.
+            You got there via Alex's guidance rather than your own
+            diagnosis, but the outcome is the same.
+
+        - id: option-b2
+          label: "Base image only — do what Alex said"
+          description: >
+            Alex pointed out the base image. Fix that, report back.
+            Stay focused on the explicit ask.
+          consequences:
+            morale: 0
+            technical_debt: +15
+          leads_to: act-3
+          feedback: >
+            Alex: "That's the base image fixed. The layer order is still
+            wrong — every build re-runs npm install from scratch.
+            I mentioned it." Technical debt +15. The problem persists
+            because you didn't follow through on the hint.
+          future_echo: >
+            In Act 4, every docker build takes longer than it should.
+            The npm cache never hits. You'll notice and you'll know why.
+
+    tasks:
+      - id: task-2b-1
+        title: "Switch to a purpose-built, pinned base image"
+        order: 1
+        context: >
+          Alex walked you to this. ubuntu:latest is a full operating system
+          — your Node app needs Node and npm, not systemd. node:18-alpine
+          is purpose-built, minimal, and pinned to a specific Node version.
+          The concept is the same whether you spotted it yourself or Alex
+          pointed it out: use the right tool for the job.
+        instruction: >
+          Edit the Dockerfile:
+          cd ~/finstack/payment-dashboard
+          Change line 1 from:
+          FROM ubuntu:latest
+          to:
+          FROM node:18-alpine
+
+          Remove the manual Node install lines:
+          Remove: RUN apt-get update
+          Remove: RUN apt-get install -y nodejs npm
+
+          Build the updated image:
+          docker build -t finstack-dashboard:v0.2 .
+
+          Compare sizes:
+          docker images | grep finstack-dashboard
+
+          Verify the app still works:
+          docker run --rm -p 3000:3000 finstack-dashboard:v0.2 &
+          sleep 3 && curl -s http://localhost:3000/health
+          kill %1 2>/dev/null || true
+        hints:
+          - level: 1
+            text: >
+              node:18-alpine has Node 18 pre-installed. Remove the apt-get
+              lines — they'll fail on Alpine Linux anyway (it uses apk, not apt).
+          - level: 2
+            text: >
+              Alpine images are minimal by design. If you need extra packages:
+              RUN apk add --no-cache packagename
+              The --no-cache flag prevents apk from storing the package index.
+          - level: 3
+            text: >
+              FROM node:18-alpine is the entire base image change.
+              Remove the two apt-get RUN lines after it.
+              Build: docker build -t finstack-dashboard:v0.2 .
+              Compare: docker images | grep finstack-dashboard
+        xp: 50
+        verification:
+          strategy: all
+          checks:
+            - id: check-2b-1-a
+              type: exit_code
+              description: "finstack-dashboard:v0.2 image exists"
+              command: "docker image inspect finstack-dashboard:v0.2"
+              expected_exit_code: 0
+            - id: check-2b-1-b
+              type: regex_output
+              description: "Dockerfile uses alpine base"
+              command: "cat ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "node:18-alpine"
+        on_success: >
+          The size dropped. That's what happens when you use the right
+          base image. Alex has seen the build output. He's satisfied
+          with the fix. Jordan is watching and quietly updating their
+          mental model of what "good Dockerfile" means.
+        on_failure: >
+          Check Dockerfile line 1: FROM node:18-alpine
+          Remove the apt-get lines — they'll fail on Alpine.
+          Full build output: docker build -t finstack-dashboard:v0.2 . 2>&1
+
+      - id: task-2b-2
+        title: "Fix the layer order for correct cache behaviour"
+        order: 2
+        context: >
+          Alex mentioned it. Now do it. COPY . . before npm install means
+          every code change — every single line you touch — invalidates
+          the npm dependency cache and triggers a full re-install.
+          Move dependency installation before the full code copy and
+          the cache will work correctly for the lifetime of this project.
+        instruction: >
+          Reorder the Dockerfile:
+
+          FROM node:18-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY . .
+          RUN npm run build
+          EXPOSE 3000
+          CMD ["node", "server.js"]
+
+          Build twice to confirm the cache works:
+          docker build -t finstack-dashboard:v0.3 .
+          echo "// comment" >> src/app.js
+          docker build -t finstack-dashboard:v0.3 .
+
+          The second build should show CACHED for the npm ci step.
+        hints:
+          - level: 1
+            text: >
+              The rule: copy files that change rarely before files that change often.
+              package.json changes rarely. Your source code changes constantly.
+              Separate the COPY instructions accordingly.
+          - level: 2
+            text: >
+              npm ci is stricter than npm install — it reads package-lock.json
+              exactly. In containers this is what you want: reproducible,
+              deterministic, no surprise version bumps.
+          - level: 3
+            text: >
+              After reordering, test the cache explicitly:
+              Build once (full build, no cache).
+              Change any .js file.
+              Build again — the COPY package*.json and npm ci layers
+              should both show CACHED. That's correct behaviour.
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-2b-2-a
+              type: exit_code
+              description: "finstack-dashboard:v0.3 image exists"
+              command: "docker image inspect finstack-dashboard:v0.3"
+              expected_exit_code: 0
+            - id: check-2b-2-b
+              type: regex_output
+              description: "Dockerfile copies package.json before full source"
+              command: "grep -n 'COPY' ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "package"
+            - id: check-2b-2-c
+              type: regex_output
+              description: "Dockerfile uses npm ci"
+              command: "cat ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "npm ci"
+        on_success: >
+          Layer order corrected. You got here via Alex's guidance —
+          that's fine, especially early in your career. What matters
+          is that you understand why the order is correct, not just
+          that you moved the lines. Run the two-build test and watch
+          the cache hit. That's the lesson. You'll spot this pattern
+          in the next Dockerfile you review without any prompting.
+        on_failure: >
+          The order must be: COPY package*.json → RUN npm ci → COPY . .
+          Check your Dockerfile: cat ~/finstack/payment-dashboard/Dockerfile
+
+# -----------------------------------------------------------------------------
+# 5. CONVERGENCE ACTS
+# -----------------------------------------------------------------------------
+convergence_acts:
+
+  # ---------------------------------------------------------------------------
+  # ACT 3 — Root is Not Your Friend
+  # ---------------------------------------------------------------------------
+  - id: act-3
+    title: "Root is Not Your Friend"
+    order: 3
+    converges_from:
+      - act-2-path-diagnosed
+      - act-2-path-guided
+
+    narrative:
+      default: >
+        Tuesday afternoon. The base image is fixed. The layer order is
+        corrected. The image is lean and builds fast. Alex reviews the
+        updated Dockerfile and says nothing for two minutes. Then:
+        "Good work on the base image. One more thing before we talk
+        about the registry. Run this:"
+        docker run --rm finstack-dashboard:v0.3 whoami
+        The terminal prints: root
+        Alex: "You're running a payment service as root inside a container.
+        On a payment platform. If this container is ever compromised,
+        the attacker has root. Fix it."
+        Jordan is in the channel: "Wait — I thought Docker containers
+        were already isolated?"
+        Alex: "Isolation and privilege are different things. Jordan —
+        this is worth understanding. Watch how this gets fixed."
+      path_variants:
+        - from: act-2-path-diagnosed
+          text: >
+            Tuesday afternoon. Both Dockerfile fixes are in. The image
+            is lean, the cache is correct. Alex reviews the PR and
+            leaves one comment: "Good so far. Run this before you merge:"
+            docker run --rm finstack-dashboard:v0.3 whoami
+            The terminal prints: root
+            Alex: "You found the base image and the layer order on your
+            own. You missed this one. It's the most important one for
+            a payment platform. Fix it."
+            Jordan, watching: "I definitely didn't think about that
+            when I wrote the original."
+        - from: act-2-path-guided
+          text: >
+            Tuesday afternoon. The Dockerfile is fixed with Alex's guidance.
+            Alex continues the review: "One more. Run this:"
+            docker run --rm finstack-dashboard:v0.3 whoami
+            The terminal prints: root
+            Alex: "You're running as root in a payment container.
+            This one's on me for not flagging it earlier — but now
+            you know to look for it. Fix it."
+
+    decision:
+      prompt: >
+        You need to add a non-root user to the Dockerfile.
+        How do you handle it?
+
+      options:
+        - id: option-d
+          label: "Create a dedicated appuser with correct ownership"
+          description: >
+            Add a new system user specifically for this application.
+            Set ownership on the working directory. Switch to that
+            user before CMD. Explicit, portable, correct.
+          consequences:
+            morale: +10
+            technical_debt: 0
+          leads_to: act-4
+          feedback: >
+            Alex: "Correct. A named user makes the container's identity
+            clear in logs and in ps output. On a shared host you can
+            trace every process back to the service that owns it."
+            Jordan adds it to their mental checklist for future Dockerfiles.
+          future_echo: >
+            In Module 5, the CI/CD pipeline runs security scanning on the
+            image. The scan passes the user check cleanly because you
+            used a dedicated named user.
+
+        - id: option-e
+          label: "Use the built-in node user from the alpine image"
+          description: >
+            node:18-alpine ships with a built-in 'node' user already
+            created. Add USER node before CMD. Less setup, still correct
+            for this specific case.
+          consequences:
+            morale: +5
+            technical_debt: 0
+          leads_to: act-4
+          feedback: >
+            Alex: "Valid. Know why it works — the node user exists in
+            this base image specifically. If you switch base images you
+            need to know to check this again. Portable? Less so.
+            Correct for now? Yes."
+          future_echo: >
+            In Module 5, the security scan passes. A comment in the
+            scan output notes the dependency on the base image user.
+            You'll know exactly what it means.
+
+        - id: option-f
+          label: "Add USER nobody"
+          description: >
+            nobody is a minimal-privilege user available on all Linux systems.
+            Simple and fast.
+          consequences:
+            morale: -5
+            technical_debt: +15
+          leads_to: act-4
+          feedback: >
+            The build succeeds. The container starts. Then crashes.
+            nobody has no permissions on /app. The app can't read its
+            own files. Technical debt +15.
+            Alex: "USER nobody is the wrong answer. nobody has no ownership
+            of your app directory. You need to either create a user and
+            set ownership, or use the existing node user from the base image.
+            Look at the chown error in the logs."
+          future_echo: >
+            In Act 4, you'll need to fix the file ownership before
+            the image is in a shippable state. The technical debt
+            surfaces as extra work under Priya's timeline pressure.
+
+    tasks:
+      - id: task-3-1
+        title: "Confirm the problem — check the running user"
+        order: 1
+        context: >
+          Before you fix something, confirm it's broken in exactly the
+          way you think it is. docker run --rm with a simple whoami
+          command will tell you definitively what user the container
+          process runs as. This is a habit: diagnose first, fix second.
+        instruction: >
+          Check what user the container runs as:
+          docker run --rm finstack-dashboard:v0.3 whoami
+
+          Also check what user owns the files inside the container:
+          docker run --rm finstack-dashboard:v0.3 ls -la /app
+
+          Note the output. root is the problem you're about to fix.
+        hints:
+          - level: 1
+            text: >
+              docker run --rm runs a container and removes it immediately
+              when the command completes. Good for one-off checks.
+              whoami prints the current user. ls -la shows file ownership.
+          - level: 2
+            text: >
+              If whoami returns root — that's your problem confirmed.
+              The app process, the file system, everything inside that
+              container is running with root privileges.
+          - level: 3
+            text: >
+              docker run --rm finstack-dashboard:v0.3 whoami
+              Expected (bad) output: root
+              docker run --rm finstack-dashboard:v0.3 ls -la /app
+              Look at the owner column — should also show root.
+        xp: 20
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-1-a
+              type: exit_code
+              description: "whoami command runs successfully against the image"
+              command: "docker run --rm finstack-dashboard:v0.3 whoami"
+              expected_exit_code: 0
+        on_success: >
+          root confirmed. Problem diagnosed. Now fix it.
+        on_failure: >
+          Make sure finstack-dashboard:v0.3 was built successfully.
+          Check: docker image inspect finstack-dashboard:v0.3
+          If missing: rebuild from Act 2.
+
+      - id: task-3-2
+        title: "Add a non-root user and fix file ownership"
+        order: 2
+        context: >
+          The fix is two Dockerfile instructions: create or reference a
+          non-root user, set correct ownership on the application directory,
+          then switch to that user before the application starts. The user
+          must own the files it needs to read and execute — otherwise the
+          app fails with permission errors at runtime.
+        instruction: >
+          Update the Dockerfile to add a non-root user.
+          Choose the approach from your decision above and implement it.
+
+          Option D (dedicated appuser):
+          FROM node:18-alpine
+          WORKDIR /app
+          COPY package*.json ./
+          RUN npm ci --only=production
+          COPY . .
+          RUN npm run build
+          RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+          RUN chown -R appuser:appgroup /app
+          USER appuser
+          EXPOSE 3000
+          CMD ["node", "server.js"]
+
+          Option E (built-in node user):
+          # Same as above but replace the addgroup/adduser/chown block with:
+          RUN chown -R node:node /app
+          USER node
+
+          Build the updated image:
+          docker build -t finstack-dashboard:v0.4 .
+
+          Verify the fix:
+          docker run --rm finstack-dashboard:v0.4 whoami
+
+          Verify the app still works:
+          docker run -d --name dashboard-v04 -p 3000:3000 finstack-dashboard:v0.4
+          curl -s http://localhost:3000/health
+          docker stop dashboard-v04 && docker rm dashboard-v04
+        hints:
+          - level: 1
+            text: >
+              addgroup -S and adduser -S create system-level groups and users
+              (no home directory, no password). -S means system account.
+              The -G flag assigns the user to a group.
+          - level: 2
+            text: >
+              chown -R changes ownership recursively.
+              appuser:appgroup sets both user and group owner.
+              Without this, the new user can't read the app files
+              and the container will crash at startup.
+          - level: 3
+            text: >
+              After building, run: docker run --rm finstack-dashboard:v0.4 whoami
+              Output must be appuser (or node) — not root.
+              If the app crashes: check docker logs dashboard-v04 for permission errors.
+              Missing chown is the most common cause.
+        xp: 80
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-2-a
+              type: exit_code
+              description: "finstack-dashboard:v0.4 image exists"
+              command: "docker image inspect finstack-dashboard:v0.4"
+              expected_exit_code: 0
+            - id: check-3-2-b
+              type: regex_output
+              description: "container does not run as root"
+              command: "docker run --rm finstack-dashboard:v0.4 whoami"
+              pattern: "^(?!root).*$"
+              flags: multiline
+            - id: check-3-2-c
+              type: regex_output
+              description: "Dockerfile contains USER directive"
+              command: "cat ~/finstack/payment-dashboard/Dockerfile"
+              pattern: "^USER "
+              flags: multiline
+        on_success: >
+          whoami no longer returns root. The application process runs
+          as an unprivileged user. On a payment platform this is not
+          optional — it's the baseline. Jordan: "I'm adding USER to my
+          Dockerfile checklist permanently." That's two of you now.
+        on_failure: >
+          If whoami still returns root: check USER directive is AFTER
+          the chown command and BEFORE CMD in your Dockerfile.
+          If app crashes: check docker logs — likely a file permission issue.
+          Run: docker run --rm finstack-dashboard:v0.4 ls -la /app
+          to check ownership.
+
+      - id: task-3-3
+        title: "Commit progress — version 0.4"
+        order: 3
+        context: >
+          Three significant fixes in two days. Commit the Dockerfile at
+          this state with a message that tells the story of what changed
+          and why. This is the version that goes for code review —
+          document it properly.
+        instruction: >
+          Commit the updated Dockerfile to your prodops-chronicles repo:
+          cd ~/prodops-chronicles
+          git checkout -b feat/containerise-dashboard
+          cp ~/finstack/payment-dashboard/Dockerfile docker/payment-dashboard/Dockerfile
+          git add docker/
+          git commit -m "feat: containerise payment dashboard — alpine base, correct layer order, non-root user"
+          git push origin feat/containerise-dashboard
+        hints:
+          - level: 1
+            text: >
+              The commit message lists what changed. The reader can immediately
+              understand the state of the Dockerfile without opening it.
+          - level: 2
+            text: >
+              feat/ branch because this is new functionality for the repo —
+              the containerisation of the dashboard. Not a fix of existing code.
+          - level: 3
+            text: >
+              mkdir -p ~/prodops-chronicles/docker/payment-dashboard
+              cp ~/finstack/payment-dashboard/Dockerfile ~/prodops-chronicles/docker/payment-dashboard/Dockerfile
+              git add docker/
+              git commit -m "feat: containerise payment dashboard — alpine base, correct layer order, non-root user"
+        xp: 30
+        verification:
+          strategy: all
+          checks:
+            - id: check-3-3-a
+              type: regex_output
+              description: "on feat/containerise-dashboard branch"
+              command: "git -C ~/prodops-chronicles branch --show-current"
+              pattern: "feat/containerise-dashboard"
+            - id: check-3-3-b
+              type: file_match
+              description: "Dockerfile committed to repo"
+              path: "~/prodops-chronicles/docker/payment-dashboard/Dockerfile"
+              match_type: exists
+              expected: null
+        on_success: >
+          Progress committed. The git history is building the story of
+          how this Dockerfile evolved. One more fix before it ships.
+        on_failure: >
+          Check you're in the right repo: cd ~/prodops-chronicles
+          Create the directory if needed: mkdir -p docker/payment-dashboard
+          Then copy and commit.
+
+  # ---------------------------------------------------------------------------
+  # ACT 4 — Pack Light, Ship Fast
+  # ---------------------------------------------------------------------------
+  - id: act-4
+    title: "Pack Light, Ship Fast"
+    order: 4
+    converges_from:
+      - act-3
+
+    narrative:
+      default: >
+        Wednesday morning. Priya messages at 9:15 AM:
+        "Status on the dashboard containerisation? We want to push
+        to the staging registry today for a test deploy."
+        Alex adds: "Before you push anything — run this:"
+        docker run --rm finstack-dashboard:v0.4 ls -la /app
+        You run it. There it is. node_modules directory. .git directory.
+        A .env.local file from Jordan's development setup.
+        All of it, sitting inside the container. All of it going to
+        the registry. All of it visible to anyone who pulls the image
+        and runs docker history on it.
+        Alex: "Jordan — did you write a .dockerignore?"
+        Jordan: "...what's a .dockerignore?"
+      path_variants:
+        - from: act-3
+          text: >
+            Wednesday morning. Priya wants a staging push today.
+            Alex runs one more check before signing off: your build
+            context. docker run --rm finstack-dashboard:v0.4 ls -la /app
+            node_modules. .git. .env.local. All inside the container.
+            Jordan: "I didn't know those got copied in."
+            Alex: "That's what COPY . . does without a .dockerignore.
+            It copies everything. Fix it. Then we push."
+
+    decision:
+      prompt: >
+        The .dockerignore is in place. The image is clean. Priya wants
+        it pushed to staging today. Alex wants it pushed to Docker Hub
+        as the canonical source. How do you handle the push workflow?
+
+      options:
+        - id: option-g
+          label: "Fix .dockerignore, push to both registries, extend deploy.sh"
+          description: >
+            Write the .dockerignore, rebuild clean, push to local registry
+            and Docker Hub, then extend the deploy script from Module 3
+            to automate the build and push steps. One command ships the app.
+          consequences:
+            morale: +15
+            technical_debt: -10
+          leads_to: ending-containerised
+          feedback: >
+            Alex reviews the extended deploy.sh: "This is what I was
+            hoping you'd do. The script from last week now builds,
+            tags, and pushes before it deploys. The whole pipeline
+            is one command. That's composable automation."
+            Priya: "Staging deploy went cleanly. Green across the board."
+          future_echo: >
+            In Module 5, the CI/CD pipeline replaces the deploy script's
+            build and push steps. You'll recognise every stage because
+            you built them here first.
+
+        - id: option-h
+          label: "Fix .dockerignore, push to both registries manually"
+          description: >
+            Write the .dockerignore, rebuild, push manually. Leave the
+            deploy script extension for a separate ticket.
+          consequences:
+            morale: +5
+            technical_debt: +15
+          leads_to: ending-it-deploys
+          feedback: >
+            Image ships. Staging is green. But the manual push process
+            means every future release is two separate steps — build
+            the image, then run the script. Alex notices the ticket
+            was opened and left. Technical debt +15.
+          future_echo: >
+            In Module 5, the pipeline needs to call your deploy script.
+            The missing docker build/push integration means extra pipeline
+            work that could have been avoided here.
+
+        - id: option-i
+          label: "Push now — fix the .dockerignore after staging validates"
+          description: >
+            Priya needs it today. Push the current image, fix the
+            .dockerignore in a follow-up PR after staging confirms it works.
+          consequences:
+            morale: -10
+            technical_debt: +25
+          leads_to: ending-image-pull-error
+          feedback: >
+            The image pushes. Staging loads. Then Alex runs docker history
+            on the pushed image and finds .env.local baked into a layer.
+            It contains the Stripe test API key Jordan used in development.
+            Alex: "There is a secret in this image's layer history.
+            That image is now on Docker Hub. Understand what that means."
+            Technical debt +25. Priya is informed. The image must be
+            deleted and rebuilt. The key must be rotated.
+          future_echo: >
+            In Module 5, the security scanning step flags images for
+            secrets in layer history. This ending is the reason that
+            step exists.
+
+    tasks:
+      - id: task-4-1
+        title: "Audit the build context — see what's going in"
+        order: 1
+        context: >
+          Before you write .dockerignore, know exactly what you're excluding.
+          Run the container with ls to see what landed inside it. Then check
+          the build context size — that's what Docker sends to the daemon
+          on every build. Large build contexts slow every build and risk
+          copying things that should never be in an image.
+        instruction: >
+          Check what's currently inside the container:
+          docker run --rm finstack-dashboard:v0.4 ls -la /app
+
+          Note everything that shouldn't be there.
+          node_modules, .git, .env files — these have no place in an image.
+
+          Check the current build context size:
+          du -sh ~/finstack/payment-dashboard/
+
+          Note the size. Most of it is probably node_modules.
+          That's what you're about to exclude.
+        hints:
+          - level: 1
+            text: >
+              COPY . . copies everything in the build context directory.
+              The build context is everything in the directory you run
+              docker build from. .dockerignore excludes files from the context.
+          - level: 2
+            text: >
+              node_modules should never be in a Docker image — you install
+              deps inside the container via npm ci. Copying them in adds
+              hundreds of MB and risks copying platform-specific native modules.
+          - level: 3
+            text: >
+              docker run --rm finstack-dashboard:v0.4 ls -la /app
+              Look for: node_modules/, .git/, .env*, *.log
+              These are all candidates for .dockerignore.
+        xp: 30
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-1-a
+              type: exit_code
+              description: "able to inspect container filesystem"
+              command: "docker run --rm finstack-dashboard:v0.4 ls /app"
+              expected_exit_code: 0
+        on_success: >
+          You've seen what's in there. node_modules, .git, .env.local.
+          None of these belong in a production image.
+          Write the .dockerignore.
+        on_failure: >
+          Make sure finstack-dashboard:v0.4 exists.
+          Check: docker image inspect finstack-dashboard:v0.4
+
+      - id: task-4-2
+        title: "Write .dockerignore"
+        order: 2
+        context: >
+          .dockerignore works exactly like .gitignore — same syntax,
+          same pattern matching, same placement (root of the build context).
+          Every file matched is excluded from the build context entirely.
+          Docker never sees it. It can never end up in a layer.
+          Write it once, correctly, and it protects every build from here on.
+        instruction: >
+          Create ~/finstack/payment-dashboard/.dockerignore:
+
+          # Dependencies — installed inside container via npm ci
+          node_modules
+          npm-debug.log*
+
+          # Git history — not needed in an image
+          .git
+          .gitignore
+
+          # Environment files — never in an image
+          .env
+          .env.*
+          .env.local
+          .env.development
+          .env.production
+
+          # Build artifacts (rebuilt inside container)
+          dist
+          build
+          coverage
+
+          # OS noise
+          .DS_Store
+          Thumbs.db
+
+          # Logs
+          *.log
+          logs
+
+          Rebuild with the .dockerignore in place:
+          docker build -t finstack-dashboard:v0.5 .
+
+          Verify the clean build context:
+          docker run --rm finstack-dashboard:v0.5 ls -la /app
+
+          node_modules and .env.local should be gone.
+          Compare the image size: docker images | grep finstack-dashboard
+        hints:
+          - level: 1
+            text: >
+              .dockerignore must be in the same directory as the Dockerfile
+              (the build context root). Same syntax as .gitignore.
+          - level: 2
+            text: >
+              After adding .dockerignore, the build context sent to Docker
+              will be significantly smaller. The "Sending build context to
+              Docker daemon" line in the build output shows you the size.
+          - level: 3
+            text: >
+              A minimal .dockerignore for a Node project always includes:
+              node_modules, .git, .env*, *.log
+              Everything else is project-specific.
+              Test: docker run --rm finstack-dashboard:v0.5 ls /app
+              node_modules should not appear in the output.
+        xp: 60
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-2-a
+              type: file_match
+              description: ".dockerignore file exists"
+              path: "~/finstack/payment-dashboard/.dockerignore"
+              match_type: exists
+              expected: null
+            - id: check-4-2-b
+              type: file_match
+              description: ".dockerignore excludes node_modules"
+              path: "~/finstack/payment-dashboard/.dockerignore"
+              match_type: contains
+              expected: "node_modules"
+            - id: check-4-2-c
+              type: file_match
+              description: ".dockerignore excludes .env files"
+              path: "~/finstack/payment-dashboard/.dockerignore"
+              match_type: contains
+              expected: ".env"
+            - id: check-4-2-d
+              type: exit_code
+              description: "finstack-dashboard:v0.5 image exists"
+              command: "docker image inspect finstack-dashboard:v0.5"
+              expected_exit_code: 0
+            - id: check-4-2-e
+              type: regex_output
+              description: "node_modules not present inside container"
+              command: "docker run --rm finstack-dashboard:v0.5 ls /app"
+              pattern: "^(?!.*node_modules).*$"
+              flags: multiline
+        on_success: >
+          The image is clean. node_modules gone. .env.local gone. .git gone.
+          Compare the image size now to Jordan's original.
+          That's what a production-ready image looks like.
+          Now create your Docker Hub account and push it.
+        on_failure: >
+          Make sure .dockerignore is in ~/finstack/payment-dashboard/ not
+          a subdirectory. Check: ls -la ~/finstack/payment-dashboard/.dockerignore
+          Rebuild: docker build -t finstack-dashboard:v0.5 .
+          Then check the container: docker run --rm finstack-dashboard:v0.5 ls /app
+
+      - id: task-4-3
+        title: "Create Docker Hub account and access token"
+        order: 3
+        context: >
+          Docker Hub is the public image registry. Your local registry is
+          private and local — Docker Hub is where images live that can be
+          pulled by anyone with access. To push to Docker Hub you need an
+          account and an access token. Not your password — a token.
+          This mirrors the SSH key lesson from the Git module: credentials
+          are scoped, named, and rotatable. A token can be revoked without
+          changing your account password.
+        instruction: >
+          Create your Docker Hub account:
+          1. Go to https://hub.docker.com
+          2. Sign up with your email
+          3. Verify your email address
+          4. Choose a username — this becomes your image namespace
+             (images will be tagged: yourusername/imagename:tag)
+
+          Create an access token:
+          1. Docker Hub → Account Settings → Security → Access Tokens
+          2. Click: New Access Token
+          3. Description: prodops-local
+          4. Permissions: Read & Write
+          5. Copy the token immediately — it's shown only once
+
+          Authenticate Docker with your token:
+          docker login --username YOUR_DOCKER_HUB_USERNAME
+
+          When prompted for password: paste your access token (not your password).
+
+          Verify login succeeded:
+          docker info | grep Username
+        hints:
+          - level: 1
+            text: >
+              Use docker login --username yourusername and paste the access
+              token when prompted for password. Docker Hub accepts tokens
+              in the password field.
+          - level: 2
+            text: >
+              Access tokens are stored in ~/.docker/config.json as base64.
+              They can be revoked from Docker Hub → Security → Access Tokens
+              without affecting your account password or other tokens.
+          - level: 3
+            text: >
+              If docker login succeeds, docker info | grep Username will show
+              your Docker Hub username. That confirms the credentials are active.
+              Store your token in a password manager — it won't be shown again.
+        xp: 40
+        db_save:
+          - field: dockerhub_username
+            from: "docker info 2>/dev/null | grep Username | awk '{print $2}'"
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-3-a
+              type: exit_code
+              description: "docker info runs successfully"
+              command: "docker info"
+              expected_exit_code: 0
+            - id: check-4-3-b
+              type: regex_output
+              description: "docker is authenticated to a registry"
+              command: "cat ~/.docker/config.json"
+              pattern: "auths"
+            - id: check-4-3-c
+              type: regex_output
+              description: "docker hub auth entry present"
+              command: "cat ~/.docker/config.json"
+              pattern: "docker\\.io|index\\.docker\\.io"
+        on_success: >
+          Authenticated. Your Docker Hub account exists. The token is stored.
+          Your image namespace is ready. Now tag the image with your username
+          and push it.
+        on_failure: >
+          If login failed: check you're using the access token, not your password.
+          If token expired: generate a new one at hub.docker.com → Security.
+          Verify: docker login returns "Login Succeeded"
+
+      - id: task-4-4
+        title: "Tag and push to both registries"
+        order: 4
+        context: >
+          A Docker image can have multiple tags. The same image layers,
+          different names. Tag the image for your local registry and for
+          Docker Hub, then push to both. Tagging for a registry means
+          prefixing the image name with the registry address —
+          localhost:5000 for local, yourusername for Docker Hub.
+        instruction: >
+          Tag the clean image for both registries:
+
+          # For local registry
+          docker tag finstack-dashboard:v0.5 localhost:5000/finstack-dashboard:1.0.0
+          docker tag finstack-dashboard:v0.5 localhost:5000/finstack-dashboard:latest
+
+          # For Docker Hub (replace YOUR_USERNAME with your actual username)
+          docker tag finstack-dashboard:v0.5 YOUR_USERNAME/finstack-dashboard:1.0.0
+          docker tag finstack-dashboard:v0.5 YOUR_USERNAME/finstack-dashboard:latest
+
+          Push to local registry:
+          docker push localhost:5000/finstack-dashboard:1.0.0
+          docker push localhost:5000/finstack-dashboard:latest
+
+          Verify it's in the local registry:
+          curl -s http://localhost:5000/v2/finstack-dashboard/tags/list
+
+          Push to Docker Hub:
+          docker push YOUR_USERNAME/finstack-dashboard:1.0.0
+          docker push YOUR_USERNAME/finstack-dashboard:latest
+
+          Verify the push:
+          docker pull YOUR_USERNAME/finstack-dashboard:1.0.0
+        hints:
+          - level: 1
+            text: >
+              docker tag SOURCE_IMAGE TARGET_IMAGE creates a new tag pointing
+              to the same image layers — no data is duplicated.
+              Tagging with a registry prefix tells docker push where to send it.
+          - level: 2
+            text: >
+              Semantic versioning for images: major.minor.patch
+              1.0.0 = first stable release. Also tag as latest so
+              docker pull finstack-dashboard always gets the current version.
+              Keeping both tags in sync is a manual discipline until CI/CD
+              handles it in Module 5.
+          - level: 3
+            text: >
+              After pushing to the local registry:
+              curl -s http://localhost:5000/v2/finstack-dashboard/tags/list
+              Expected: {"name":"finstack-dashboard","tags":["1.0.0","latest"]}
+              After pushing to Docker Hub:
+              Go to hub.docker.com/r/YOUR_USERNAME/finstack-dashboard
+              You should see both tags listed.
+        xp: 70
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-4-a
+              type: regex_output
+              description: "image pushed to local registry"
+              command: "curl -s http://localhost:5000/v2/finstack-dashboard/tags/list"
+              pattern: "1\\.0\\.0"
+            - id: check-4-4-b
+              type: exit_code
+              description: "local registry contains the image"
+              command: "curl -s http://localhost:5000/v2/finstack-dashboard/tags/list | grep -q '1.0.0'"
+              expected_exit_code: 0
+            - id: check-4-4-c
+              type: exit_code
+              description: "Docker Hub image is pullable"
+              command: "docker manifest inspect $(docker info 2>/dev/null | grep Username | awk '{print $2}')/finstack-dashboard:1.0.0 2>/dev/null || echo 'verify manually'"
+              expected_exit_code: 0
+        on_success: >
+          Image is in both registries. Anyone with registry access can
+          pull finstack-dashboard:1.0.0 and run a known-good version.
+          That's what a registry is for — a single source of truth
+          for what gets deployed. Now close the loop: update the deploy script.
+        on_failure: >
+          If local push fails: make sure the registry container is running.
+          docker ps --filter name=prodops-registry
+          If Docker Hub push fails: check docker login status.
+          docker info | grep Username
+
+      - id: task-4-5
+        title: "Extend deploy.sh with docker build and push"
+        order: 5
+        context: >
+          The deploy script you built in Module 3 deploys config to servers.
+          Now the app ships as a Docker image. The deploy script should
+          build the image, push it to the registry, then run the deployment.
+          One script. One command. The whole pipeline. This is exactly
+          what Alex predicted when he said "the script you build will
+          need to build and push a container image."
+        instruction: >
+          Add a build_and_push function to deploy.sh before the
+          deploy_config function:
+
+          # --- Docker build and push ---
+          DOCKER_REGISTRY="${DOCKER_REGISTRY:-localhost:5000}"
+          IMAGE_NAME="finstack-dashboard"
+          IMAGE_TAG="${VERSION:-1.0.0}"
+
+          build_and_push() {
+            local registry=$1
+            local name=$2
+            local tag=$3
+            local context=$4
+
+            log "INFO" "Building image: ${registry}/${name}:${tag}"
+            docker build -t "${registry}/${name}:${tag}" "$context"
+
+            log "INFO" "Pushing image: ${registry}/${name}:${tag}"
+            docker push "${registry}/${name}:${tag}"
+
+            docker tag "${registry}/${name}:${tag}" "${registry}/${name}:latest"
+            docker push "${registry}/${name}:latest"
+
+            log "INFO" "Image pushed: ${registry}/${name}:${tag}"
+          }
+
+          Call it before deploy_config in the main flow:
+          build_and_push "$DOCKER_REGISTRY" "$IMAGE_NAME" "$IMAGE_TAG" \
+            ~/finstack/payment-dashboard
+
+          Test the extended script:
+          ./scripts/deploy.sh staging config/payment.cfg
+
+          Commit the extension:
+          git add scripts/deploy.sh
+          git commit -m "feat: extend deploy script with docker build and push"
+          git push origin feat/deploy-script
+        hints:
+          - level: 1
+            text: >
+              The function takes registry, name, tag, and build context as
+              arguments. This makes it reusable for any service — not just
+              the payment dashboard.
+          - level: 2
+            text: >
+              DOCKER_REGISTRY="${DOCKER_REGISTRY:-localhost:5000}" uses
+              the environment variable if set, otherwise defaults to the
+              local registry. To push to Docker Hub instead:
+              DOCKER_REGISTRY=yourusername ./scripts/deploy.sh staging config/payment.cfg
+          - level: 3
+            text: >
+              After adding the function, test locally first:
+              ./scripts/deploy.sh staging config/payment.cfg
+              Watch the output — you should see the docker build and push
+              log lines before the deployment log lines.
+              Check the local registry after: curl -s http://localhost:5000/v2/finstack-dashboard/tags/list
+        xp: 90
+        verification:
+          strategy: all
+          checks:
+            - id: check-4-5-a
+              type: file_match
+              description: "deploy.sh contains build_and_push function"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "build_and_push()"
+            - id: check-4-5-b
+              type: file_match
+              description: "deploy.sh references docker build"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "docker build"
+            - id: check-4-5-c
+              type: file_match
+              description: "deploy.sh references docker push"
+              path: "~/prodops-chronicles/scripts/deploy.sh"
+              match_type: contains
+              expected: "docker push"
+            - id: check-4-5-d
+              type: regex_output
+              description: "script runs successfully end to end"
+              command: "~/prodops-chronicles/scripts/deploy.sh staging config/payment.cfg 2>&1 | tail -5"
+              pattern: "Deployment complete|complete|success"
+              flags: ignorecase
+        on_success: >
+          The deploy script now builds the image, pushes it, and deploys
+          the config — in one command. Alex reviews the diff:
+          "The script from last week now knows about Docker.
+          That's composable automation. Module 5 is a CI pipeline.
+          You've already written half of it."
+          In Slack: Jordan has unpinned Jamie's deploy doc.
+          Nobody announced it. It just happened.
+        on_failure: >
+          Check the function is defined BEFORE it's called in the script.
+          Bash reads top to bottom.
+          Test the function alone: add a test call and run with bash -x for verbose output.
+          bash -x ~/prodops-chronicles/scripts/deploy.sh staging config/payment.cfg
+
+# -----------------------------------------------------------------------------
+# 6. ENDINGS
+# -----------------------------------------------------------------------------
+endings:
+
+  - id: ending-containerised
+    title: "Containerised"
+    type: success
+    conditions:
+      morale: ">= 75"
+      technical_debt: "< 30"
+
+    narrative: >
+      Wednesday 5:30 PM.
+
+      In the local registry: finstack-dashboard:1.0.0. Clean.
+      No root. No secrets. No node_modules. Alpine base. Correct layer
+      order. 142MB. Jordan's original was 947MB.
+
+      On Docker Hub: the same image. Public. Tagged. Anyone on the
+      team can pull it.
+
+      In your prodops-chronicles repo: a Dockerfile that tells the story
+      of four fixes. A deploy script that builds, pushes, and deploys
+      in one command. A git history that documents every decision.
+
+      Alex's review comes in at 5:15 PM. Three comments. All minor.
+      Then: "Approved. Merge when ready."
+
+      Priya's message at 5:28 PM:
+      "Staging deploy is green. Payment dashboard is running in a
+      container for the first time. Nice work."
+
+      Jordan at 5:45 PM:
+      "I learned more from watching you fix my Dockerfile than from
+      anything I've read about Docker. Can I steal your .dockerignore
+      template?"
+
+      Next week is CI/CD. The Dockerfile you built will be the template.
+      The deploy script you extended will become the pipeline.
+      You'll recognise everything when you see it.
+
+    score_modifier: 1.0
+
+    post_mortem: >
+      A working container and a production-ready container are two different
+      things. Jordan's Dockerfile built and ran — and it was wrong in four
+      specific ways that would have caused real problems in production.
+      Wrong base image: silent breakage on next upstream release, unnecessary
+      attack surface, excessive size. Wrong layer order: cache invalidated
+      on every code change, slower builds forever. Running as root: full
+      privilege escalation if the container is ever compromised. Missing
+      .dockerignore: secrets and credentials in image layer history, visible
+      to anyone who runs docker history. None of these would have surfaced
+      in a basic smoke test. All of them matter in production.
+      Read every Dockerfile you inherit. Run docker history on every image
+      you didn't build. Check what user the container runs as. Check what's
+      in the build context. These are five-minute checks that prevent
+      hours of incident response.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +20
+      yearly_review_flags: []
+
+    future_references:
+      - module: ci-cd
+        callback: >
+          The Dockerfile from this module becomes the CI pipeline's build
+          template. The build_and_push function in deploy.sh is the direct
+          ancestor of the pipeline's build and push stages. You'll recognise
+          the pattern immediately in Module 5.
+
+  - id: ending-it-deploys
+    title: "It Deploys"
+    type: partial
+    conditions:
+      morale: ">= 45"
+      technical_debt: "< 60"
+
+    narrative: >
+      Wednesday 6:00 PM.
+
+      The image is clean. Staging is green. The Docker Hub push went through.
+      You got there.
+
+      But the deploy script still has two separate steps — build the image,
+      then run the deployment. The ticket to integrate them is open.
+      Alex reviewed the PR and left one comment: "When does that ticket close?"
+      He didn't wait for an answer.
+
+      Priya: "Good work. Staging is happy. We'll schedule the prod cutover
+      for next week." She doesn't mention the open ticket. She will.
+
+      The image is in production. It's not as automated as it could be.
+      It'll do for now. "It'll do for now" is not the same as done.
+
+    score_modifier: 0.75
+
+    post_mortem: >
+      Containerisation done. Automation incomplete. A deploy process that
+      requires two manual steps instead of one is a deploy process that
+      will eventually be run with one step forgotten. The deploy script
+      was purpose-built to be extended — the architecture was right there.
+      Technical debt in automation doesn't disappear, it just waits for
+      an inconvenient moment. Module 5 will surface this — a CI pipeline
+      that calls a deploy script with a missing build step will fail
+      in a way that takes longer to debug than it would have taken to
+      fix the script here.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - flag: "docker-module-partial"
+          severity: minor
+          note: >
+            Container image shipped successfully but deploy automation
+            incomplete. Build and push steps not integrated into deploy
+            script. Manual multi-step deploy process remains.
+          can_be_offset_by:
+            - ci-cd
+
+    future_references:
+      - module: ci-cd
+        callback: >
+          The CI pipeline needs to call the deploy script. The missing
+          build_and_push integration means an extra pipeline step that
+          could have been avoided. You'll know exactly why it's needed.
+
+  - id: ending-image-pull-error
+    title: "Image Pull Error"
+    type: low_score
+    conditions:
+      morale: "< 45"
+      technical_debt: ">= 60"
+
+    narrative: >
+      Wednesday 7:15 PM. You're still at your desk.
+
+      Alex ran docker history on the image after it landed on Docker Hub.
+      Layer 7. The .env.local contents. There it is. Jordan's Stripe test
+      key, baked into the image history, visible to anyone who pulls it
+      and looks.
+
+      Alex: "The image is on Docker Hub. It needs to come down.
+      The key needs to be rotated. Then we talk about how this happened."
+
+      You take the image down. Jordan rotates the key. Priya is told.
+      She doesn't send a message. That's worse.
+
+      The git history shows when the .dockerignore was supposed to be added.
+      The commit message where you skipped it is right there for everyone to read.
+
+      The staging deploy is reverted. Prod cutover is pushed to next week.
+      A proper remediation plan needs to be filed before the image can
+      be re-pushed.
+
+      Alex at 7:05 PM, just before you close your laptop:
+      "docker history is public. Always. On every image you push.
+      Whatever is in a layer stays in that image forever unless you
+      rebuild from scratch. A secret in an image is a permanent secret.
+      There is no patch for it. There is only rotate and rebuild.
+      You know this now. Don't learn it twice."
+
+      Module 5 is CI/CD. There will be a security scanning step
+      in the pipeline. You'll know exactly why it's there.
+
+    score_modifier: 0.5
+
+    post_mortem: >
+      A secret in a Docker layer is permanent. docker history exposes
+      every layer to anyone with pull access. Deleting the image from
+      the registry does not delete cached copies. The only remediation
+      is to rotate the secret and rebuild the image from a clean state —
+      never from a layer that contained the secret. .dockerignore is not
+      optional on a production system. It exists to prevent exactly this.
+      The pressure to push quickly is always real. The cost of pushing
+      the wrong thing is always higher than the cost of taking five more
+      minutes to check what's in the build context.
+
+    unlocks_next: true
+
+    performance_impact:
+      performance_score: -15
+      yearly_review_flags:
+        - flag: "docker-module-secret-exposure"
+          severity: moderate
+          note: >
+            Development credential exposed in Docker image layer history.
+            Image published to Docker Hub before .dockerignore was in place.
+            Secret rotation required. Staging deploy reverted. Remediation
+            plan filed. Production cutover delayed.
+          can_be_offset_by:
+            - ci-cd
+
+    future_references:
+      - module: ci-cd
+        callback: >
+          The CI pipeline includes a mandatory secrets-scanning step on
+          every image build. The flag in the scan output will reference
+          the pattern that caused this incident. You'll know exactly
+          what it's protecting against.
+
+# -----------------------------------------------------------------------------
+# 7. PROGRESS TRACKING
+# -----------------------------------------------------------------------------
+progress:
+  schema_version: 1
+  tracked_fields:
+    - field: acts_completed
+      type: array
+    - field: decisions_made
+      type: map
+    - field: tasks_completed
+      type: array
+    - field: ending_reached
+      type: string
+    - field: final_score
+      type: integer
+    - field: xp_earned
+      type: integer
+    - field: tracker_final_state
+      type: map
+    - field: replays
+      type: integer
+    - field: decision_history
+      type: array
+    - field: performance_impact
+      type: map
+    - field: yearly_review_flags
+      type: array
+    - field: dockerhub_username
+      type: string
+    - field: local_registry_url
+      type: string
+    - field: image_name
+      type: string
+    - field: image_tag
+      type: string
+
+# -----------------------------------------------------------------------------
+# 8. COMMUNITY CONTRIBUTIONS
+# -----------------------------------------------------------------------------
+community:
+  contributions_enabled: true
+  contribution_schema_version: 1

@@ -1,0 +1,757 @@
+module:
+  id: cicd
+  name: "CI/CD"
+  order: 6
+  pod_name: prodops-cicd
+  key_tools:
+    - gitea
+    - woodpecker-ci
+  chronicle_name: "Green"
+  chronicle_intro: |
+    The stack is running. Now make it do something.
+  practical_exercise: "Configure Gitea repo, write Woodpecker pipeline, lint, build, and push a Docker image"
+  unlocks_after: bash-scripting
+  branch: v0.8
+
+tracker_initial_state:
+  morale: 75
+  incident_severity: null
+  technical_debt: 25
+  performance_score: 0
+
+progress_tracking:
+  fields:
+    - id: acts_completed
+      type: list
+    - id: decisions_made
+      type: list
+    - id: tasks_completed
+      type: list
+    - id: ending_reached
+      type: string
+    - id: final_score
+      type: integer
+    - id: xp_earned
+      type: integer
+    - id: tracker_final_state
+      type: object
+    - id: replays
+      type: integer
+      default: 0
+    - id: decision_history
+      type: list
+      append_only: true
+    - id: performance_impact
+      type: object
+    - id: yearly_review_flags
+      type: list
+    - id: hardcoded_pipeline_credentials
+      type: boolean
+      default: false
+    - id: push_stage_missing
+      type: boolean
+      default: false
+    - id: pipeline_file_path
+      type: string
+    - id: registry_url
+      type: string
+    - id: gitea_repo_url
+      type: string
+
+acts:
+  - id: act-1
+    title: "The Next Step"
+    intro: |
+      The stack is running. Five services, named volumes, named network.
+      Gitea at localhost:3000. Woodpecker at localhost:8000.
+
+      You open Woodpecker.
+
+      There are no pipelines.
+      There are no repositories.
+      There is nothing.
+
+      The stack is infrastructure. This is what you build on it.
+    tasks:
+      - id: act-1-task-1
+        title: "Connect Gitea to Woodpecker"
+        type: instruction
+        content: |
+          Woodpecker needs to know about your Gitea repositories.
+          First, activate the integration.
+
+          In Gitea (localhost:3000):
+          1. Log in as your admin user
+          2. Go to Settings → Applications
+          3. Generate an OAuth2 application named "woodpecker"
+          4. Set the redirect URI to: http://localhost:8000/authorize
+          5. Copy the client ID and client secret
+
+          Add them to stack/.env:
+            WOODPECKER_GITEA_CLIENT=<client-id>
+            WOODPECKER_GITEA_SECRET=<client-secret>
+
+          Restart the woodpecker-server service:
+            docker compose -f stack/docker-compose.yml restart woodpecker-server
+
+          Log into Woodpecker at localhost:8000 using your Gitea credentials.
+          Woodpecker will ask to authorize — approve it.
+        verification:
+          type: regex_output
+          command: "curl -s -o /dev/null -w '%{http_code}' http://localhost:8000"
+          pattern: "200|302"
+        xp: 100
+        leads_to: act-1-task-2
+
+      - id: act-1-task-2
+        title: "Create the application repository"
+        type: instruction
+        content: |
+          In Gitea, create a new repository called payment-dashboard.
+
+          Push the payment dashboard code from Module 4 into it:
+
+            cd ~/payment-dashboard
+            git remote add gitea http://localhost:3000/<your-username>/payment-dashboard.git
+            git push gitea main
+
+          Then activate the repository in Woodpecker:
+          1. Go to localhost:8000
+          2. Click the "+" to add a repository
+          3. Find payment-dashboard and activate it
+
+          Woodpecker will add a webhook to the Gitea repository automatically.
+          Any push to main will now notify Woodpecker to run a pipeline.
+
+          Verify the webhook was created:
+          In Gitea → payment-dashboard → Settings → Webhooks
+          You should see a Woodpecker webhook pointing to localhost:8000.
+        verification:
+          type: regex_output
+          command: "curl -s http://localhost:3000/api/v1/repos/<your-username>/payment-dashboard/hooks -H 'Authorization: token <gitea-token>' | python3 -c \"import sys,json; hooks=json.load(sys.stdin); print('ok' if any('8000' in str(h) for h in hooks) else 'missing')\""
+          pattern: "ok"
+        hint: "You can generate a Gitea API token in Settings → Applications → Access Tokens."
+        xp: 100
+        leads_to: act-1-task-3
+
+      - id: act-1-task-3
+        title: "Write the pipeline"
+        type: instruction
+        content: |
+          Create .woodpecker.yml in the root of payment-dashboard.
+
+          A Woodpecker pipeline is a YAML file that defines steps.
+          Each step runs in a container. Steps run sequentially by default.
+
+          Write a pipeline with three steps:
+
+            when:
+              branch: main
+              event: push
+
+            steps:
+              lint:
+                image: node:18-alpine
+                commands:
+                  - npm ci
+                  - npx eslint src/
+
+              build:
+                image: docker:24
+                volumes:
+                  - /var/run/docker.sock:/var/run/docker.sock
+                commands:
+                  - docker build -t localhost:5000/payment-dashboard:${CI_COMMIT_SHA} .
+
+              push:
+                image: docker:24
+                volumes:
+                  - /var/run/docker.sock:/var/run/docker.sock
+                commands:
+                  - docker push localhost:5000/payment-dashboard:${CI_COMMIT_SHA}
+
+          CI_COMMIT_SHA is a built-in Woodpecker variable — the commit hash
+          of the push that triggered the pipeline. Every image pushed to the
+          registry is tagged with the exact commit that produced it.
+          This means you can always trace any running image back to the
+          exact line of code that built it.
+        verification:
+          type: file_match
+          path: "payment-dashboard/.woodpecker.yml"
+          pattern: "localhost:5000/payment-dashboard"
+        xp: 150
+        leads_to: act-1-task-4
+
+      - id: act-1-task-4
+        title: "Push and watch"
+        type: instruction
+        content: |
+          Commit .woodpecker.yml and push to main:
+
+            git add .woodpecker.yml
+            git commit -m "ci: add woodpecker pipeline"
+            git push gitea main
+
+          Open Woodpecker at localhost:8000.
+          You should see a pipeline run appear within a few seconds.
+
+          Watch it run. Read each step's output as it executes.
+          The pipeline will fail. That's expected.
+
+          Your job right now is not to fix it — it's to read it.
+          Find the failing step. Read the full error message.
+          Understand what it's telling you before moving on.
+        hint: "Click into the failing step in the Woodpecker UI to see the full log output."
+        xp: 50
+        leads_to: act-2
+
+  - id: act-2
+    title: "Red"
+    intro: |
+      The lint step failed.
+
+        lint | npm ci
+        lint | npm warn idealTree No description
+        lint | added 0 packages in 0.3s
+        lint | npx eslint src/
+        lint | ESLint couldn't find an eslint config file.
+
+      You run eslint locally. It works.
+      Of course it does. You have eslint installed globally on your machine.
+      The pipeline doesn't.
+
+      npm ci installs exactly what's in package.json.
+      eslint isn't in package.json.
+      So the pipeline installed nothing useful and then couldn't find eslint.
+
+      This is the gap. Your machine has years of globally installed tools.
+      The pipeline has only what you declare.
+    tasks:
+      - id: act-2-task-1
+        title: "Add eslint as a project dependency"
+        type: instruction
+        content: |
+          Fix the gap. Add eslint to the project as a dev dependency:
+
+            cd payment-dashboard
+            npm install --save-dev eslint
+
+          This adds eslint to package.json under devDependencies and updates
+          package-lock.json. Now when the pipeline runs npm ci, it will install
+          eslint because the project explicitly requires it.
+
+          Verify it was added:
+            cat package.json | grep eslint
+
+          You should see something like:
+            "eslint": "^8.x.x"
+        verification:
+          type: file_match
+          path: "payment-dashboard/package.json"
+          pattern: "\"eslint\""
+        xp: 100
+        leads_to: act-2-task-2
+
+      - id: act-2-task-2
+        title: "Add an eslint config"
+        type: instruction
+        content: |
+          eslint also needs a configuration file to know what rules to apply.
+          Without one, it refuses to run.
+
+          Create payment-dashboard/.eslintrc.json:
+
+            {
+              "env": {
+                "browser": true,
+                "es2021": true
+              },
+              "extends": "eslint:recommended",
+              "parserOptions": {
+                "ecmaVersion": "latest",
+                "sourceType": "module"
+              },
+              "rules": {
+                "no-unused-vars": "warn",
+                "no-console": "warn"
+              }
+            }
+
+          eslint:recommended is a built-in ruleset. No extra plugins required.
+          It catches real problems: unused variables, unreachable code,
+          duplicate keys, missing returns.
+        verification:
+          type: file_match
+          path: "payment-dashboard/.eslintrc.json"
+          pattern: "eslint:recommended"
+        xp: 100
+        leads_to: act-2-task-3
+
+      - id: act-2-task-3
+        title: "Push and read the next failure"
+        type: instruction
+        content: |
+          Commit the changes and push:
+
+            git add package.json package-lock.json .eslintrc.json
+            git commit -m "ci: add eslint config and dev dependency"
+            git push gitea main
+
+          Watch the pipeline in Woodpecker.
+
+          The lint step will pass this time.
+          The build step will fail.
+
+          Read the full build step output before moving to Act 3.
+          The error is telling you exactly what's wrong.
+          Your job is to understand it, not just copy the fix.
+        hint: "Look for lines starting with 'ERROR' or 'error' in the build step log. The first error is usually the real one — everything after is consequence."
+        xp: 50
+        narrator: |
+          Alex messages while you're reading the logs.
+
+          Alex: "What's it saying?"
+          You: "Build step failed. Something about a path."
+          Alex: "Classic. The pipeline runs in a clean container.
+                 No home directory. No project globals. No assumptions.
+                 Jenkins would call what you just wrote a 'stage'.
+                 Same concept. Woodpecker calls it a step.
+                 GitHub Actions calls it a step too.
+                 The name changes. The problem doesn't."
+          Alex: "Fix the path. Then it'll find something else.
+                 That's how this goes."
+        leads_to: act-3
+
+  - id: act-3
+    title: "Systematic"
+    intro: |
+      Build step failed.
+
+        build | sh: scripts/build.sh: not found
+
+      You run it locally:
+
+        $ bash scripts/build.sh
+        Building payment-dashboard...
+        Done.
+
+      It works. Of course it does.
+      You're running it from the project root.
+      The pipeline container starts at /.
+      scripts/build.sh is a relative path.
+      Relative to what, exactly?
+
+      Alex was right. Fix the path. Then it'll find something else.
+    tasks:
+      - id: act-3-task-1
+        title: "Fix the working directory"
+        type: instruction
+        content: |
+          The build step runs commands inside a docker:24 container.
+          That container starts with a working directory of /.
+          Your script is at payment-dashboard/scripts/build.sh —
+          but the container doesn't know that unless you tell it.
+
+          Fix it by setting the working directory explicitly in the
+          build and push steps of .woodpecker.yml:
+
+            build:
+              image: docker:24
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+              working_dir: /woodpecker/src/localhost/payment-dashboard
+              commands:
+                - sh scripts/build.sh
+
+          Woodpecker clones your repository into a predictable path
+          based on your Gitea hostname and repo name. Setting working_dir
+          tells the step where your project root actually is inside
+          the container.
+
+          Apply the same working_dir to the push step.
+        verification:
+          type: file_match
+          path: "payment-dashboard/.woodpecker.yml"
+          pattern: "working_dir:"
+        xp: 150
+        leads_to: act-3-task-2
+
+      - id: act-3-task-2
+        title: "Push and read the next failure"
+        type: instruction
+        content: |
+          Commit and push:
+
+            git add .woodpecker.yml
+            git commit -m "ci: fix working directory in build and push steps"
+            git push gitea main
+
+          Watch the pipeline. The build step will progress further this time.
+          Then it will fail again.
+
+            build | sh scripts/build.sh
+            build | Building payment-dashboard...
+            build | /bin/sh: jq: not found
+            build | Error: build script exited with code 127
+
+          jq is used inside scripts/build.sh to parse config.json.
+          It's installed on your machine. It is not in the docker:24 alpine image.
+
+          This failure is different from the path failure.
+          The path failure was in the pipeline configuration.
+          This failure is in the application itself — specifically the
+          Dockerfile and build scripts that Module 4 produced.
+
+          Read scripts/build.sh and find every place jq is called
+          before moving to the next task.
+        hint: "grep -n 'jq' scripts/build.sh will show you every line that uses it."
+        xp: 50
+        leads_to: act-3-task-3
+
+      - id: act-3-task-3
+        title: "Fix the Dockerfile"
+        type: instruction
+        content: |
+          The build script uses jq. The build container doesn't have jq.
+          The fix is in the Dockerfile — add it as a build dependency.
+
+          Open payment-dashboard/Dockerfile.
+          Find the RUN instruction where you install dependencies.
+          Add jq:
+
+          For an alpine-based image:
+            RUN apk add --no-cache jq
+
+          For a debian-based image:
+            RUN apt-get update && apt-get install -y --no-install-recommends jq \
+                && rm -rf /var/lib/apt/lists/*
+
+          This is a Module 4 callback. The Dockerfile you wrote then is
+          the build environment the pipeline runs in now. What you put in
+          it — or didn't — determines what the pipeline can do.
+
+          Every dependency your build process needs must be declared
+          explicitly. The CI container has no memory of your local machine.
+        verification:
+          type: file_match
+          path: "payment-dashboard/Dockerfile"
+          pattern: "jq"
+        xp: 150
+        leads_to: act-3-task-4
+
+      - id: act-3-task-4
+        title: "Push and watch it pass"
+        type: instruction
+        content: |
+          Commit and push:
+
+            git add Dockerfile
+            git commit -m "fix: add jq to build image dependencies"
+            git push gitea main
+
+          Watch the pipeline.
+
+          Lint passes. Build passes. Push passes.
+
+          Check the local registry to confirm the image landed:
+
+            curl -s http://localhost:5000/v2/payment-dashboard/tags/list
+
+          You should see the commit SHA from your push listed as a tag.
+          That image was built by the pipeline, not by your hands.
+        verification:
+          type: regex_output
+          command: "curl -s http://localhost:5000/v2/payment-dashboard/tags/list"
+          pattern: "\"tags\":"
+        xp: 100
+        narrator: |
+          Three failures. Three different causes.
+          Missing dependency. Wrong working directory. Missing build tool.
+
+          None of them were bugs in the application.
+          All of them were assumptions — things that existed on your
+          machine and nowhere else.
+
+          A pipeline that passes is a pipeline that makes no assumptions.
+        leads_to: act-4
+
+  - id: act-4
+    title: "Green"
+    intro: |
+      The pipeline is green.
+
+      lint → build → push.
+      Every commit to main builds an image.
+      Every image is tagged with the commit that produced it.
+      The registry at localhost:5000 has the receipts.
+
+      You message Jordan.
+
+      You: "Pipeline is up. Want to test it?"
+      Jordan: "yes!! what do i do"
+    tasks:
+      - id: act-4-task-1
+        title: "Set Jordan up"
+        type: instruction
+        content: |
+          Jordan needs access to the Gitea repository and Woodpecker.
+
+          In Gitea:
+          1. Go to payment-dashboard → Settings → Collaborators
+          2. Add Jordan's Gitea username with write access
+
+          In Woodpecker:
+          Jordan can log in at localhost:8000 using their Gitea credentials.
+          The OAuth2 integration you configured in Act 1 handles authentication.
+          No extra setup needed.
+
+          Tell Jordan:
+          - Clone the repo from localhost:3000
+          - Create a feature branch
+          - Make any small change to a .js file in src/
+          - Open a pull request against main
+
+          The pipeline will run automatically when the PR is opened.
+        verification:
+          type: regex_output
+          command: "curl -s http://localhost:3000/api/v1/repos/<your-username>/payment-dashboard/teams -H 'Authorization: token <gitea-token>' | python3 -c \"import sys,json; teams=json.load(sys.stdin); print('ok' if teams else 'empty')\""
+          pattern: "ok"
+        hint: "You can also verify by checking Gitea → payment-dashboard → Settings → Collaborators directly in the UI."
+        xp: 50
+        leads_to: act-4-task-2
+
+      - id: act-4-task-2
+        title: "Watch Jordan's build"
+        type: instruction
+        content: |
+          Jordan messages:
+
+          Jordan: "ok i made a change and opened the PR"
+          Jordan: "there's something running in woodpecker??"
+          Jordan: "oh it went green"
+          Jordan: "i didn't do anything and it just... checked my code"
+          Jordan: "this is what ci/cd is"
+
+          Open Woodpecker and confirm Jordan's pipeline run completed
+          successfully. You should see a build triggered by Jordan's
+          commit, with all three steps green.
+
+          Check the registry — Jordan's build produced a new image:
+
+            curl -s http://localhost:5000/v2/payment-dashboard/tags/list
+
+          Two tags. Your commit SHA and Jordan's.
+          Two different people. Same pipeline. Same result.
+        verification:
+          type: regex_output
+          command: "curl -s http://localhost:5000/v2/payment-dashboard/tags/list | python3 -c \"import sys,json; data=json.load(sys.stdin); print('ok' if len(data.get('tags',[])) >= 2 else 'fail')\""
+          pattern: "ok"
+        xp: 100
+        leads_to: act-4-task-3
+
+      - id: act-4-task-3
+        title: "Document the pipeline"
+        type: instruction
+        content: |
+          Add a CI/CD section to payment-dashboard/README.md.
+
+          Required content:
+
+          ## CI/CD
+
+          ### Pipeline
+          Describe the three stages: what each one does, what tool
+          runs it, and what a failure in each stage means.
+
+          ### Triggering a build
+          How to trigger the pipeline. What branch. What event.
+
+          ### Registry
+          Where built images are pushed. How they are tagged.
+          How to pull a specific build:
+            docker pull localhost:5000/payment-dashboard:<commit-sha>
+
+          ### Local development
+          How to run eslint locally before pushing:
+            npm run lint
+
+          Add a lint script to package.json so that command works:
+            "scripts": {
+              "lint": "eslint src/"
+            }
+
+          The pipeline and local development should use the same command.
+          If it passes locally, it should pass in CI.
+        verification:
+          type: file_match
+          path: "payment-dashboard/README.md"
+          pattern: "## CI/CD"
+        xp: 150
+        leads_to: ending-check
+
+ending_check:
+  type: branch
+  conditions:
+    - if: "hardcoded_pipeline_credentials == true"
+      leads_to: ending-low-score
+    - if: "push_stage_missing == true"
+      leads_to: ending-partial
+    - default:
+      leads_to: ending-good
+
+endings:
+  - id: ending-good
+    title: "Green"
+    content: |
+      Priya posts in #engineering at 17:00.
+
+      Priya: "Sharing the Q1 engineering review. Please read when you get a chance."
+
+      ---
+      Q1 Engineering Review — Finstack SRE
+
+      This quarter marked the onboarding of our newest SRE.
+      What follows is a summary of contributions and observations.
+
+      Module completions: Linux CLI, Git, Bash Scripting,
+      Docker, Docker Compose, CI/CD.
+
+      Notable contributions:
+
+      The mystery server in week one had 85% disk utilisation,
+      no documentation, and no owner. It was diagnosed and resolved
+      the same day. That set the tone.
+
+      The deploy script written in week two is still running in staging.
+      It has not broken once.
+
+      The CI stack — Gitea, Woodpecker, Postgres — was built from a
+      broken compose file left by a previous team member. It was fixed,
+      extended, documented, and handed off. Jordan was running builds
+      within an hour of getting access.
+
+      The CI/CD pipeline went green on the sixth push after three
+      systematic failures. Each failure was diagnosed correctly.
+      No guessing. No asking someone else to fix it.
+
+      Areas for continued growth: Kubernetes, infrastructure as code,
+      observability. These are next.
+
+      The foundation is solid.
+
+      — Priya
+      ---
+
+      You read it twice.
+
+      Alex messages twenty minutes later.
+
+      Alex: "Pipeline's clean. Stack's documented. Good quarter."
+
+      That's it. No ceremony.
+
+      You open Woodpecker. Jordan's latest build is green.
+      Yours is green. The registry has the receipts.
+
+      You started with a mystery server and an 85% full disk.
+      You end with infrastructure that runs itself.
+
+      That's the foundation. v2.0 starts here.
+    performance_impact:
+      performance_score: +20
+      yearly_review_flags: []
+
+  - id: ending-partial
+    title: "Half a Pipeline"
+    content: |
+      Priya posts the Q1 review in #engineering.
+
+      ---
+      Q1 Engineering Review — Finstack SRE
+
+      Module completions: Linux CLI, Git, Bash Scripting,
+      Docker, Docker Compose, CI/CD.
+
+      The CI/CD pipeline lints and builds on every push to main.
+      The push stage was not completed — images are built but not
+      published to the registry. The pipeline validates code but
+      does not produce deployable artefacts.
+
+      This is half a pipeline. Lint and build without push means
+      nothing ships automatically. The value of CI/CD is the full
+      loop: validate, build, publish. Stopping at build leaves
+      the last step — the one that actually delivers — as a
+      manual process.
+
+      The stack itself is clean. The compose file is documented.
+      Jordan had no trouble getting running.
+
+      Complete the push stage before Q2.
+
+      — Priya
+      ---
+
+      Alex doesn't message.
+
+      Jordan's build is green on the steps that exist.
+      The registry is empty.
+
+      You know what's missing.
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - id: "incomplete-pipeline"
+          severity: minor
+          note: "Push stage not implemented. Pipeline validates and builds
+                 but does not publish images. CI/CD loop incomplete."
+          can_be_offset_by: "Implement push stage and confirm images
+                             appear in registry before Module 7."
+
+  - id: ending-low-score
+    title: "Third Time"
+    content: |
+      Jordan cloned the repo. Opened the PR. Watched the pipeline run.
+
+      Then Jordan read .woodpecker.yml.
+
+      Jordan: "hey quick question"
+      Jordan: "are these docker hub credentials supposed to be
+               in the pipeline file"
+      Jordan: "like in plain text"
+
+      You already know what Alex is going to say.
+
+      Alex: "This is the third time."
+      Alex: "Module 4. Module 5. Now Module 6."
+      Alex: "We've had this conversation twice. You've seen what
+             happens. You've fixed it in other people's files."
+      Alex: "Rotate the credentials. Use Woodpecker secrets.
+             Security review Friday."
+
+      Priya's review arrives at 17:00.
+
+      The CI stack is noted. The pipeline is noted.
+      The credential exposure is noted.
+
+      One line near the end:
+
+      "The pattern of hardcoded credentials across three modules
+       suggests a gap between knowing the rule and applying it
+       under pressure. This will be a focus area in Q2."
+
+      Jordan's build is green.
+      The pipeline works.
+      The credentials are already being rotated.
+
+      You know the rule.
+      You've always known the rule.
+      The gap is somewhere else.
+    performance_impact:
+      performance_score: -15
+      yearly_review_flags:
+        - id: "credential-exposure-repeated"
+          severity: severe
+          note: "Hardcoded credentials in pipeline YAML. Third occurrence
+                 across Modules 4, 5, and 6. Pattern identified in
+                 formal Q1 review. Security review required."
+          can_be_offset_by: null

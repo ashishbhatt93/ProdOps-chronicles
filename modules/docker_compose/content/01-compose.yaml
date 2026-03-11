@@ -1,0 +1,772 @@
+module:
+  id: docker-compose
+  name: "Docker Compose"
+  order: 5
+  pod_name: prodops-compose
+  key_tools:
+    - docker-compose
+    - yaml
+  chronicle_name: "Composify"
+  chronicle_intro: |
+    You've containerised one service.
+    Now learn to make them speak to each other.
+  practical_exercise: "Write compose files, run multi-service stacks, networking, volumes"
+  unlocks_after: docker
+  branch: v0.6
+
+tracker_initial_state:
+  morale: 70
+  incident_severity: null
+  technical_debt: 30
+  performance_score: 0
+
+progress_tracking:
+  fields:
+    - id: acts_completed
+      type: list
+    - id: decisions_made
+      type: list
+    - id: tasks_completed
+      type: list
+    - id: ending_reached
+      type: string
+    - id: final_score
+      type: integer
+    - id: xp_earned
+      type: integer
+    - id: tracker_final_state
+      type: object
+    - id: replays
+      type: integer
+      default: 0
+    - id: decision_history
+      type: list
+      append_only: true
+    - id: performance_impact
+      type: object
+    - id: yearly_review_flags
+      type: list
+    - id: hardcoded_credentials
+      type: boolean
+      default: false
+    - id: readme_sections
+      type: integer
+      default: 0
+    - id: compose_file_path
+      type: string
+    - id: named_volumes_added
+      type: boolean
+      default: false
+    - id: named_network_added
+      type: boolean
+      default: false
+
+acts:
+  - id: act-1
+    title: "The Handoff"
+    intro: |
+      07:43. Slack notification.
+
+      Alex: "Jamie left this. It doesn't work. Fix it."
+      Alex: "stack/docker-compose.yml"
+      Alex: "We need it running by EOD. CI/CD module depends on it."
+
+      You open the file.
+
+      # Composify — stack/docker-compose.yml
+      # Last modified: Jamie S.
+
+      You've containerised one service. Now you're looking at three.
+      Same alphabet. Different problem.
+    tasks:
+      - id: act-1-task-1
+        title: "Read the file"
+        type: instruction
+        content: |
+          Open stack/docker-compose.yml and read it carefully.
+
+          Jamie's file defines two services: gitea and woodpecker-server.
+          Find what's wrong before you touch anything.
+
+          One problem is visible immediately.
+        hint: "Look at how credentials are defined in the gitea service."
+        xp: 50
+        leads_to: act-1-task-2
+
+      - id: act-1-task-2
+        title: "Move credentials to .env"
+        type: instruction
+        content: |
+          Jamie hardcoded the Gitea admin password directly in the compose file:
+
+            environment:
+              GITEA__security__INSTALL_LOCK: "true"
+              GITEA__database__PASSWD: "sup3rs3cr3t"
+
+          This is the same mistake from Module 4. Credentials in version-controlled
+          files get committed, shared, and leaked.
+
+          Fix it:
+          1. Create stack/.env
+          2. Add GITEA_DB_PASSWORD=<your-password>
+          3. Replace the hardcoded value with ${GITEA_DB_PASSWORD}
+          4. Add stack/.env to .gitignore
+        verification:
+          type: file_match
+          path: "stack/.env"
+          pattern: "GITEA_DB_PASSWORD=.+"
+        xp: 100
+        leads_to: act-1-task-3
+
+      - id: act-1-task-3
+        title: "Run it"
+        type: instruction
+        content: |
+          You've fixed the one problem you could see. Time to find the ones you couldn't.
+
+          First, a quick note on reading compose output. Each line is prefixed
+          with the service name:
+
+            gitea      | ... this is Gitea's output
+            woodpecker | ... this is Woodpecker's output
+
+          A service that starts cleanly will log something like:
+            gitea      | Starting server...
+
+          A service that fails will log an error and exit:
+            gitea      | Fatal: ...
+            gitea exited with code 1
+
+          There are two more problems in this file. Running it will surface them
+          one at a time. Read the output carefully — the error message tells you
+          exactly what's wrong.
+
+          Run the stack:
+
+            docker compose -f stack/docker-compose.yml up
+
+          Don't stop at the first error. Let it run until it fails or stabilises,
+          then read back through the output before moving to the next task.
+        hint: "If the output scrolls past, run it again with --no-color to make it easier to read."
+        xp: 50
+        leads_to: act-1-task-4
+
+      - id: act-1-task-4
+        title: "Fix the image version"
+        type: instruction
+        content: |
+          Gitea failed to start. The error:
+
+            gitea  | dial tcp: lookup postgres on 127.0.0.1:53: no such host
+            gitea  | Failed to initialize ORM engine: ...
+
+          But before that, you may have noticed:
+
+            gitea  | Pulling gitea (gitea/gitea:latest)...
+
+          Jamie used latest. latest pulled a version with a breaking config
+          change. The stack/base_configs.yaml specifies gitea: "1.21".
+
+          Fix it:
+          1. Replace gitea/gitea:latest with gitea/gitea:1.21
+          2. Run again
+
+          The postgres error is expected — that service doesn't exist yet.
+          Focus on Gitea starting cleanly this time.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "gitea/gitea:1\\.21"
+        xp: 100
+        leads_to: act-1-task-5
+
+      - id: act-1-task-5
+        title: "Fix the service order"
+        type: instruction
+        content: |
+          Gitea starts now but Woodpecker crashes immediately:
+
+            woodpecker-server  | time="..." level=fatal msg="cannot ping gitea"
+            woodpecker-server exited with code 1
+
+          Jamie defined woodpecker-server before gitea in the compose file and
+          added no depends_on. Docker Compose started both simultaneously.
+          Woodpecker tried to reach Gitea before Gitea was ready.
+
+          Fix it:
+          Add a depends_on block to the woodpecker-server service:
+
+            depends_on:
+              gitea:
+                condition: service_started
+
+          Run again. Both services should start in order.
+        verification:
+          type: regex_output
+          command: "docker compose -f stack/docker-compose.yml up -d && docker compose -f stack/docker-compose.yml ps"
+          pattern: "gitea.*running"
+        xp: 150
+        narrator: |
+          Three errors. One visible, two hiding behind a cold start.
+
+          Jamie started this file before they left. It was never finished.
+          It is now.
+        leads_to: act-2
+
+  - id: act-2
+    title: "Dependencies"
+    intro: |
+      Gitea is running. Jamie's file is fixed.
+
+      But the stack isn't done. Woodpecker CI needs Postgres.
+      Postgres needs a network. The network doesn't exist yet.
+
+      You're not fixing someone else's work anymore.
+      You're building.
+    tasks:
+      - id: act-2-task-1
+        title: "Add Postgres"
+        type: instruction
+        content: |
+          Woodpecker CI requires a database. Add a Postgres service
+          to stack/docker-compose.yml.
+
+          Use the version pinned in stack/base_configs.yaml:
+            versions:
+              postgres: "15.4"
+
+          Minimum required configuration:
+          - image: postgres:15.4
+          - environment: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+          - Credentials via .env — not hardcoded
+
+          Add the three Postgres credentials to stack/.env before referencing
+          them in the compose file.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "image: postgres:15\\.4"
+        xp: 100
+        leads_to: act-2-task-2
+
+      - id: act-2-task-2
+        title: "Add Woodpecker server"
+        type: instruction
+        content: |
+          Woodpecker CI runs as a server that handles the UI, pipeline
+          scheduling, and Gitea integration.
+
+          Add it to stack/docker-compose.yml:
+
+            woodpecker-server:
+              image: woodpeckerci/woodpecker-server:v2.3
+              environment:
+                WOODPECKER_OPEN: "true"
+                WOODPECKER_GITEA: "true"
+                WOODPECKER_GITEA_URL: http://gitea:3000
+                WOODPECKER_DATABASE_DRIVER: postgres
+                WOODPECKER_DATABASE_DATASOURCE: >-
+                  postgres://${WOODPECKER_DB_USER}:${WOODPECKER_DB_PASSWORD}
+                  @postgres:5432/${WOODPECKER_DB_NAME}?sslmode=disable
+                WOODPECKER_AGENT_SECRET: ${WOODPECKER_AGENT_SECRET}
+              ports:
+                - "8000:8000"
+              depends_on:
+                - postgres
+
+          Add WOODPECKER_DB_USER, WOODPECKER_DB_PASSWORD, WOODPECKER_DB_NAME,
+          and WOODPECKER_AGENT_SECRET to stack/.env.
+
+          The agent that executes pipeline steps will be added in Module 6
+          when you write your first pipeline. For now, the server is enough
+          to verify the stack connects correctly.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "woodpeckerci/woodpecker-server:v2\\.3"
+        xp: 100
+        leads_to: act-2-task-3
+
+      - id: act-2-task-3
+        title: "Add a healthcheck to Gitea"
+        type: instruction
+        content: |
+          Woodpecker depends on Gitea. But depends_on: service_started
+          only waits for the container to start — not for Gitea to be
+          ready to accept connections.
+
+          If Woodpecker starts while Gitea is still initialising, it will
+          fail to register and exit. You need a healthcheck.
+
+          Add this to the gitea service:
+
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+              interval: 10s
+              timeout: 5s
+              retries: 5
+              start_period: 30s
+
+          Then update woodpecker-server's depends_on:
+
+            depends_on:
+              gitea:
+                condition: service_healthy
+
+          Now Woodpecker will wait until Gitea passes its healthcheck
+          before attempting to connect.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "condition: service_healthy"
+        xp: 150
+        leads_to: act-2-task-4
+
+      - id: act-2-task-4
+        title: "Fix the network"
+        type: instruction
+        content: |
+          Run the stack:
+
+            docker compose -f stack/docker-compose.yml up
+
+          Woodpecker server fails:
+
+            woodpecker-server | dial tcp: lookup gitea on 127.0.0.1:53:
+                              | no such host
+
+          The services are on Docker's default bridge network. On the
+          default network, service discovery by name doesn't work reliably
+          across compose services.
+
+          Fix it by defining a named network and attaching all services to it.
+
+          At the bottom of docker-compose.yml, add:
+
+            networks:
+              prodops-net:
+                driver: bridge
+
+          Then add to every service:
+
+            networks:
+              - prodops-net
+
+          Named networks give each service a stable DNS entry using its
+          service name. gitea resolves to the Gitea container from
+          any other service on the same network.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "prodops-net"
+        xp: 150
+        leads_to: act-2-task-5
+
+      - id: act-2-task-5
+        title: "Verify inter-service DNS"
+        type: instruction
+        content: |
+          Run the stack again:
+
+            docker compose -f stack/docker-compose.yml up -d
+
+          Once all services are running, verify Woodpecker can reach Gitea
+          by name from inside the network:
+
+            docker compose -f stack/docker-compose.yml exec woodpecker-server \
+              wget -qO- http://gitea:3000/api/healthz
+
+          Expected output:
+            {"status":"pass"}
+
+          If you see that, the network is working. Service names are resolving.
+          Woodpecker knows where Gitea lives.
+        verification:
+          type: regex_output
+          command: "docker compose -f stack/docker-compose.yml exec woodpecker-server wget -qO- http://gitea:3000/api/healthz"
+          pattern: "\"status\":\"pass\""
+        xp: 100
+        narrator: |
+          Five services. One network. Each one reachable by name.
+
+          You didn't just add services — you defined the relationships between them.
+          That's what compose is for.
+        leads_to: act-3
+
+  - id: act-3
+    title: "The Restart Test"
+    intro: |
+      13:47. Slack message from Priya.
+
+      Priya: "Hey — can you restart the CI stack after lunch?
+               Patching the host at 14:00. Should be back up by 14:30."
+
+      You bring the stack down:
+
+        docker compose -f stack/docker-compose.yml down
+
+      You wait. At 14:32, you bring it back up:
+
+        docker compose -f stack/docker-compose.yml up -d
+
+      All services start. Green across the board.
+
+      Then you open Gitea.
+
+      The admin account is gone. The configuration is gone.
+      The setup wizard is back.
+
+      The repos are still there — Git data is stored differently,
+      it survived. But everything else is gone.
+
+      You message Alex.
+    tasks:
+      - id: act-3-task-1
+        title: "Understand what happened"
+        type: instruction
+        content: |
+          Alex: "Bind mount to a temp path. Classic.
+                 You got lucky the repos survived. Fix the volumes
+                 before you restore anything."
+
+          Open stack/docker-compose.yml and find the Gitea volume definition.
+          Jamie's file used a bind mount:
+
+            volumes:
+              - /tmp/gitea-data:/data
+
+          Two problems:
+          1. /tmp is cleared on host restart — anything stored there is gone
+          2. A bind mount with no named volume means Docker has no record
+             of this data. It's just a directory. No lifecycle management.
+
+          Before you fix it, inspect what Docker currently knows about
+          your volumes:
+
+            docker volume ls
+
+          You'll see nothing for Gitea. Docker never managed this data.
+          That's why it disappeared.
+        hint: "docker volume ls shows only named volumes Docker manages. Bind mounts to host paths don't appear here."
+        xp: 50
+        leads_to: act-3-task-2
+
+      - id: act-3-task-2
+        title: "Replace bind mounts with named volumes"
+        type: instruction
+        content: |
+          Fix Gitea first. Replace the bind mount with a named volume.
+
+          In the gitea service, change:
+            volumes:
+              - /tmp/gitea-data:/data
+
+          To:
+            volumes:
+              - gitea-data:/data
+
+          Then do the same for Postgres. Find its volume definition and
+          replace any bind mount with:
+            volumes:
+              - postgres-data:/var/lib/postgresql/data
+
+          Declare both named volumes at the bottom of the file alongside
+          your networks definition:
+
+            volumes:
+              gitea-data:
+              postgres-data:
+
+          Also add the Gitea admin credentials to stack/.env now so they're
+          ready when you restore the setup:
+
+            GITEA_ADMIN_USER=your-username
+            GITEA_ADMIN_PASSWORD=your-password
+
+          Named volumes are managed by Docker. They persist across
+          docker compose down. They survive host restarts.
+          They appear in docker volume ls.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "gitea-data:"
+        xp: 150
+        leads_to: act-3-task-3
+
+      - id: act-3-task-3
+        title: "Verify persistence"
+        type: instruction
+        content: |
+          Bring the stack back up and complete Gitea's setup wizard.
+          Use the admin credentials you saved in stack/.env.
+
+          Then run the restart test yourself:
+
+            docker compose -f stack/docker-compose.yml down
+            docker compose -f stack/docker-compose.yml up -d
+
+          Open Gitea again. The admin account should still be there.
+          No setup wizard. Configuration intact.
+
+          Verify your named volumes survived:
+
+            docker volume ls | grep stack
+        verification:
+          type: regex_output
+          command: "docker volume ls"
+          pattern: "stack_gitea-data"
+        xp: 150
+        leads_to: act-3-task-4
+
+      - id: act-3-task-4
+        title: "Add a healthcheck to Postgres"
+        type: instruction
+        content: |
+          One loose end. Woodpecker server depends on Postgres, but its
+          depends_on currently only waits for the container to start —
+          not for Postgres to be ready to accept connections.
+
+          Add a healthcheck to the postgres service:
+
+            healthcheck:
+              test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+              interval: 10s
+              timeout: 5s
+              retries: 5
+
+          Then update woodpecker-server's depends_on:
+
+            depends_on:
+              gitea:
+                condition: service_healthy
+              postgres:
+                condition: service_healthy
+
+          Run the stack one final time. All services should reach
+          healthy status before Woodpecker attempts any connections.
+        verification:
+          type: file_match
+          path: "stack/docker-compose.yml"
+          pattern: "pg_isready"
+        xp: 100
+        narrator: |
+          You brought it down. You brought it back up.
+          Everything survived.
+
+          That's not luck this time. That's the file.
+        leads_to: act-4
+
+  - id: act-4
+    title: "Hand it Over"
+    intro: |
+      The stack runs. It survives restarts. The services find each other.
+
+      Alex hasn't said anything. That means it's fine.
+
+      Jordan messages at 16:20.
+
+      Jordan: "hey! heard you got the CI stack running 👀"
+      Jordan: "can i get access? want to set it up on my machine too"
+      Jordan: "is there like... a readme or something"
+
+      You look at the stack/ directory.
+      There is no README.
+    tasks:
+      - id: act-4-task-1
+        title: "Write the README"
+        type: instruction
+        content: |
+          Create stack/README.md. It needs to be useful to someone
+          who didn't build this stack.
+
+          Required sections:
+
+          ## Services
+          List each service, what it does, and what port it exposes.
+          At minimum: gitea, woodpecker-server, postgres.
+
+          ## Prerequisites
+          What does someone need before they can run this?
+          Docker, docker compose, a .env file.
+
+          ## Setup
+          Step-by-step. Assume nothing.
+          1. Clone the repo
+          2. Copy .env.example to .env and fill in values
+          3. Run docker compose -f stack/docker-compose.yml up -d
+          4. Open Gitea at http://localhost:3000
+
+          ## Ports
+          | Service         | Port |
+          |-----------------|------|
+          | Gitea           | 3000 |
+          | Woodpecker      | 8000 |
+
+          ## Stopping the stack
+          How to bring it down without losing data.
+
+          One more thing: create stack/.env.example with all required
+          keys but no values. This is what Jordan will copy.
+
+            GITEA_DB_PASSWORD=
+            POSTGRES_USER=
+            POSTGRES_PASSWORD=
+            POSTGRES_DB=
+            WOODPECKER_DB_USER=
+            WOODPECKER_DB_PASSWORD=
+            WOODPECKER_DB_NAME=
+            WOODPECKER_AGENT_SECRET=
+            GITEA_ADMIN_USER=
+            GITEA_ADMIN_PASSWORD=
+        verification:
+          type: file_match
+          path: "stack/README.md"
+          pattern: "## Setup"
+        xp: 150
+        leads_to: act-4-task-2
+
+      - id: act-4-task-2
+        title: "Jordan's first run"
+        type: instruction
+        content: |
+          You send Jordan the link to the stack/ directory and tell them
+          to follow the README.
+
+          Ten minutes later:
+
+          Jordan: "ok i cloned it and did the .env thing"
+          Jordan: "but i ran docker compose up and it says no configuration
+                   file provided"
+          Jordan: "is it broken"
+
+          It's not broken. Jordan ran the command from the wrong directory.
+          The compose file is at stack/docker-compose.yml — not at the repo root.
+
+          Reply to Jordan in Slack with the exact command they need to run.
+          Write your reply in a file called slack-reply.txt in the repo root.
+          prodops verify will check it.
+        verification:
+          type: file_match
+          path: "slack-reply.txt"
+          pattern: "docker compose -f stack/docker-compose\\.yml"
+        hint: "The -f flag lets you specify a compose file path from any directory."
+        xp: 100
+        leads_to: act-4-task-3
+
+      - id: act-4-task-3
+        title: "Confirm Jordan is running"
+        type: instruction
+        content: |
+          Jordan: "OHHHH"
+          Jordan: "ok that worked"
+          Jordan: "gitea is up on 3000, woodpecker on 8000"
+          Jordan: "this is so cool actually"
+          Jordan: "the README was really helpful btw 🙌"
+
+          One final check. Verify your own stack is still healthy:
+
+            docker compose -f stack/docker-compose.yml ps
+
+          All services should show healthy or running.
+          No restarts. No exits.
+        verification:
+          type: regex_output
+          command: "docker compose -f stack/docker-compose.yml ps --format json"
+          pattern: "\"Health\":\"healthy\""
+        xp: 50
+        leads_to: ending-check
+
+ending_check:
+  type: branch
+  conditions:
+    - if: "hardcoded_credentials == true"
+      leads_to: ending-low-score
+    - if: "readme_sections < 3"
+      leads_to: ending-partial
+    - default:
+      leads_to: ending-good
+
+endings:
+  - id: ending-good
+    title: "Composify"
+    content: |
+      Alex sends a message at 17:45. No greeting.
+
+      Alex: "Stack looks clean. Volumes are right. Network is right.
+             README is actually useful. Jordan got it running first try."
+      Alex: "This is what the CI/CD module runs on. Don't break it."
+
+      That's it. That's the review.
+
+      You look at stack/docker-compose.yml. Five services.
+      Named volumes. Named network. Healthchecks. Credentials in .env.
+      A README someone else could follow.
+
+      Jamie started this file. You finished it.
+      Then you replaced it entirely.
+
+      Module 6 starts here.
+    performance_impact:
+      performance_score: +20
+      yearly_review_flags: []
+
+  - id: ending-partial
+    title: "It Works, Mostly"
+    content: |
+      Jordan got the stack running. Eventually.
+
+      Jordan: "hey the README stopped at step 3"
+      Jordan: "what do i do after docker compose up"
+      Jordan: "nvm figured it out"
+
+      Alex reviews the stack at end of day.
+
+      Alex: "Volumes are right. Network is right. README is thin.
+             Jordan had to figure out the last bit themselves.
+             Fine for now. Fill it in before Module 6."
+
+      The stack works. The documentation is a stub.
+      Someone will hit the same gap Jordan did.
+      Probably at a worse time.
+    performance_impact:
+      performance_score: +5
+      yearly_review_flags:
+        - id: "sparse-documentation"
+          severity: minor
+          note: "Stack README missing setup completion steps. Jordan required
+                 additional guidance despite documentation existing."
+          can_be_offset_by: "Complete stack/README.md before Module 6 starts."
+
+  - id: ending-low-score
+    title: "Jamie's Pattern"
+    content: |
+      Jordan cloned the repo. Followed the README. Ran the stack.
+
+      Then Jordan opened docker-compose.yml to check something.
+
+      Jordan: "uh"
+      Jordan: "there are passwords just... in the file"
+      Jordan: "is that normal"
+
+      Alex saw the message before you could reply.
+
+      Alex: "No. It is not normal."
+      Alex: "This is exactly what Jamie did in the file you were
+             given to fix. You fixed Jamie's credentials.
+             Then you hardcoded your own."
+      Alex: "Security review. Tomorrow. Rotate everything."
+
+      The stack runs. The credentials are exposed.
+      Anyone who can read the repo can read the passwords.
+
+      You learned what not to do in Act 1.
+      Then you did it anyway.
+    performance_impact:
+      performance_score: -15
+      yearly_review_flags:
+        - id: "credential-exposure"
+          severity: severe
+          note: "Hardcoded credentials committed to version-controlled compose
+                 file after being explicitly shown the same mistake in the
+                 same module. Security review required."
+          can_be_offset_by: null
