@@ -1,0 +1,87 @@
+id: act-3
+title: "Build the Repo"
+act_number: 4
+
+narrative: >
+  SSH is live. Alex's final setup message arrives:
+  "Create your repo. Public or private — your call, think about it.
+  Branch protection from day one. No direct pushes to main.
+  Use rulesets, not classic protection rules — we're not in 2019.
+  And name it prodops-chronicles. That's where your work lives from now on."
+
+tasks:
+  - id: task-3-1
+    title: "Create the prodops-chronicles repo"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "gh repo view prodops-chronicles"
+        expected_exit: 0
+        failure_message: "prodops-chronicles repo not found on GitHub — run: gh repo create prodops-chronicles --public --clone"
+      - type: exit_code
+        command: "git -C ~/prodops-chronicles log --oneline | head -1"
+        expected_exit: 0
+        failure_message: "No commits in local repo — make your first commit"
+      - type: regex_output
+        command: "ls ~/prodops-chronicles/"
+        pattern: "README.md"
+        failure_message: "README.md not found in repo"
+    hints:
+      - "gh repo create handles everything — creates on GitHub and clones locally in one command."
+      - "The --clone flag automatically clones after creating. No need for git clone separately."
+      - "gh repo create prodops-chronicles --public --clone && cd prodops-chronicles && echo '# ProdOps Chronicles' > README.md && git add . && git commit -m \"docs: initial commit\" && git push origin main"
+
+  - id: task-3-2
+    title: "Set up branch protection — rulesets"
+    xp: 80
+    checks:
+      - type: exit_code
+        command: "gh api repos/$(gh api user --jq '.login')/prodops-chronicles/rulesets"
+        expected_exit: 0
+        failure_message: "Could not check rulesets — verify gh auth status"
+      - type: regex_output
+        command: "gh api repos/$(gh api user --jq '.login')/prodops-chronicles/rulesets"
+        pattern: "protect-main"
+        failure_message: "protect-main ruleset not found — create it via gh api or GitHub UI"
+    hints:
+      - "Rulesets live at the repo level. The gh api command sends a direct API request to GitHub."
+      - "enforcement: active means it's live immediately. enforcement: evaluate is dry-run mode."
+      - "GUI: GitHub → repo → Settings → Rules → Rulesets → New ruleset → Add rule: Require a pull request before merging → Required approvals: 1 → Target: Default branch"
+
+decision:
+  prompt: >
+    Alex said the visibility is your call. Public or private?
+  options:
+    - id: option-g
+      label: "Public — own your work"
+      narrative: >
+        Alex replies: "Good. Own your work. Nothing to hide in
+        a learning repo." Your repo will feed into ProdOps
+        community stats (with your consent in Act 5).
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-h
+      label: "Private — your progress stays yours"
+      narrative: >
+        Priya messages: "Smart call. Some orgs require private
+        repos for anything work-adjacent. Good instinct."
+        Your progress syncs privately.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-i
+      label: "Public now, maybe private later"
+      narrative: >
+        Technically fine. But changing repo visibility mid-project
+        has implications — forks, cached content, search indexing.
+        Technical debt +10. It's a decision that's easier to make
+        once than to unmake. Alex says nothing. That's the feedback.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 10
+        severity_change: ""

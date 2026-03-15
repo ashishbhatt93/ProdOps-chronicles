@@ -1,0 +1,114 @@
+id: act-1
+title: "Welcome to the Team"
+act_number: 1
+
+narrative: >
+  Alex's message is clear. Git environment first, everything else second.
+  You open a new terminal. Time to figure out what's already on this
+  machine and what needs to be set up. A professional git environment
+  has three layers: the git binary itself, your global identity config,
+  and your credentials. You're going to build all three — in that order.
+
+tasks:
+  - id: task-1-1
+    title: "Verify git is installed"
+    xp: 20
+    checks:
+      - type: exit_code
+        command: "git --version"
+        expected_exit: 0
+        failure_message: "git not found — run: sudo apt update && sudo apt install git -y"
+      - type: regex_output
+        command: "git --version"
+        pattern: "git version 2\\."
+        failure_message: "git version must be 2.x or higher"
+    hints:
+      - "git --version is the fastest way to confirm installation."
+      - "If it returns 'git version 2.x.x' you're good. If 'command not found', install it."
+      - "sudo apt update && sudo apt install git -y && git --version"
+
+  - id: task-1-2
+    title: "Configure your git identity"
+    xp: 30
+    checks:
+      - type: exit_code
+        command: "git config --global user.name"
+        expected_exit: 0
+        failure_message: "user.name is not set — run: git config --global user.name \"Your Name\""
+      - type: regex_output
+        command: "git config --global user.name"
+        pattern: "^.{2,}$"
+        failure_message: "user.name is empty or too short"
+      - type: regex_output
+        command: "git config --global user.email"
+        pattern: ".+@.+"
+        failure_message: "user.email does not contain @ — must be a valid email address"
+    hints:
+      - "Replace 'Your Name' and 'your@email.com' with your actual values. Include the quotes."
+      - "git config --global stores settings in ~/.gitconfig. View with: cat ~/.gitconfig"
+      - "git config --global user.name \"Jane Smith\" && git config --global user.email \"jane@example.com\""
+
+  - id: task-1-3
+    title: "Set default branch name and editor"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git config --global init.defaultBranch"
+        pattern: "^main$"
+        failure_message: "Default branch must be set to 'main'"
+      - type: exit_code
+        command: "git config --global core.editor"
+        expected_exit: 0
+        failure_message: "core.editor is not set"
+    hints:
+      - "init.defaultBranch main means new repos start with 'main' instead of 'master'."
+      - "If unsure which editor to pick, use nano — it's most beginner-friendly."
+      - "git config --global init.defaultBranch main && git config --global core.editor \"nano\""
+
+decision:
+  prompt: >
+    Alex asks: "What email are you going to use for git config?
+    Make sure it matches your GitHub."
+  options:
+    - id: option-a
+      label: "Personal email (matches GitHub account)"
+      narrative: >
+        Smart call. When your commits show up on GitHub, they'll be
+        linked to your profile automatically. Your contribution graph
+        will reflect your actual work. Alex sees the config and says
+        nothing — which means it's correct.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-b
+      label: "Work email (doesn't exist on GitHub yet)"
+      narrative: >
+        Your commits will show up as unlinked in GitHub — no avatar,
+        no profile connection. Alex notices in Act 3 when reviewing
+        your PR: "Why are your commits showing as anonymous? Fix your
+        git config." Technical debt +15.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 15
+        severity_change: ""
+
+    - id: option-c
+      label: "Throwaway email (quick and easy)"
+      narrative: >
+        Alex reviews your first commit in Act 4 and messages:
+        "Who is noreply@test.com? Is that you?" Technical debt +25.
+        Your entire commit history for this module will need to be
+        corrected. This follows you to the yearly review.
+      tracker_effects:
+        morale_delta: -10
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "git-throwaway-email"
+        severity: minor
+        note: "Git identity configured with throwaway email, causing anonymous commits throughout module."
+        can_be_offset_by:
+          - bash-scripting
+          - docker

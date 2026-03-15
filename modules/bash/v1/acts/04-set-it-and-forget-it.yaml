@@ -1,0 +1,154 @@
+id: act-4
+title: "Set it and Forget it"
+act_number: 4
+
+narrative: >
+  Friday morning. Alex does his review. He reads the script carefully.
+  Reads the git log. Runs it against staging.
+  "This is good work. Set flags, logging, rollback. This is what
+  I wanted to see."
+  Then he opens the server metrics dashboard.
+  "Disk warning is back. 78% on /var. Did you set up logrotate
+  properly last week or just clear space?"
+  The answer depends on what you did in Module 1.
+  Either way — it needs a permanent automated fix. Today.
+
+tasks:
+  - id: task-4-1
+    title: "Write the log cleanup script"
+    xp: 80
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/cleanup.sh"
+        contains: "set -euo pipefail"
+        failure_message: "cleanup.sh not found or missing set -euo pipefail"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/cleanup.sh"
+        contains: "find"
+        failure_message: "cleanup.sh must use find to locate old log files"
+      - type: regex_output
+        command: "ls -la ~/prodops-chronicles/scripts/cleanup.sh"
+        pattern: "^-rwx"
+        failure_message: "cleanup.sh is not executable — run: chmod +x scripts/cleanup.sh"
+    hints:
+      - "The while read loop with find -print0 handles filenames with spaces safely."
+      - "((COMPRESSED++)) increments the counter. Alternative: COMPRESSED=$((COMPRESSED + 1))"
+      - "Key pattern: find \"$LOG_DIR\" -name '*.log' -mtime \"+${MAX_AGE_DAYS}\" -print0 | while IFS= read -r -d '' file; do gzip \"$file\"; done"
+
+  - id: task-4-2
+    title: "Schedule the cleanup with cron"
+    xp: 60
+    checks:
+      - type: regex_output
+        command: "crontab -l 2>/dev/null"
+        pattern: "cleanup.sh"
+        failure_message: "Cron entry for cleanup.sh not found — run: crontab -e and add the job"
+      - type: regex_output
+        command: "crontab -l 2>/dev/null"
+        pattern: "0 2 \\* \\* \\*"
+        failure_message: "Cron job must be scheduled at 2 AM (0 2 * * *)"
+    hints:
+      - "Cron syntax: minute hour day-of-month month day-of-week command. 0 2 * * * = at 2 AM every day."
+      - "Always use full absolute paths in cron jobs. Cron has a minimal PATH."
+      - "crontab -e — add: 0 2 * * * /home/prodops/prodops-chronicles/scripts/cleanup.sh >> /var/log/cleanup.log 2>&1"
+
+  - id: task-4-3
+    title: "Finalise and review the complete deploy script"
+    xp: 40
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "deploy.sh —"
+        failure_message: "deploy.sh missing header comment — add a description block at the top"
+      - type: exit_code
+        command: "bash -n ~/prodops-chronicles/scripts/deploy.sh"
+        expected_exit: 0
+        failure_message: "deploy.sh has a syntax error — run: bash -n scripts/deploy.sh to find it"
+      - type: regex_output
+        command: "wc -l < ~/prodops-chronicles/scripts/deploy.sh"
+        pattern: "^[1-6][0-9]$"
+        failure_message: "deploy.sh must be under 70 lines — refactor if needed"
+    hints:
+      - "cat -n shows line numbers. wc -l counts lines. bash -n checks syntax without executing."
+      - "A good header: # deploy.sh — what it does, usage, author, last updated."
+      - "bash -n scripts/deploy.sh returns nothing if syntax is clean."
+
+  - id: task-4-4
+    title: "Merge the deploy script to main"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "gh pr list --state merged --head feat/deploy-script --repo $(gh api user --jq '.login')/prodops-chronicles"
+        expected_exit: 0
+        failure_message: "feat/deploy-script PR not merged — run: gh pr create then gh pr merge"
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch --show-current"
+        pattern: "^main$"
+        failure_message: "Not on main branch — run: git checkout main && git pull"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "#!/bin/bash"
+        failure_message: "deploy.sh not present on main branch"
+    hints:
+      - "git add scripts/ && git commit -m \"feat: complete deploy and cleanup scripts\" && git push origin feat/deploy-script"
+      - "gh pr create --title \"feat: payment config deploy script\" --base main && gh pr merge --squash --delete-branch"
+
+  - id: task-4-5
+    title: "prodops sync"
+    xp: 30
+    checks:
+      - type: exit_code
+        command: "prodops sync"
+        expected_exit: 0
+        failure_message: "prodops sync failed — check prodops status"
+    hints:
+      - "prodops sync uses the SSH key and remote you configured in Module 2."
+      - "If sync fails: prodops status && gh auth status && ssh -T git@github.com"
+
+decision:
+  prompt: >
+    The log cleanup needs to run on a schedule. When do you
+    schedule the cron job?
+  options:
+    - id: option-j
+      label: "2 AM daily — low traffic, standard practice"
+      narrative: >
+        Alex: "2 AM. Good. That's when I'd schedule it. Low traffic,
+        predictable window, easy to check logs in the morning."
+        Disk stays healthy. No performance impact during business hours.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-k
+      label: "Every hour — keeps disk very clean"
+      narrative: >
+        Priya notices a performance dip during business hours on
+        Friday afternoon. Traced to hourly gzip operations on active
+        log files causing I/O contention. Technical debt +10.
+        More frequent isn't always better.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 10
+        severity_change: ""
+
+    - id: option-l
+      label: "Manually triggered — I'll remember to run it"
+      narrative: >
+        Alex: "You won't remember. Nobody ever does. That's why
+        we automate. The entire point of this module was to stop
+        doing things manually. You've written a cleanup script
+        that you're going to run manually. That's not automation.
+        That's a shortcut with extra steps." Technical debt +25.
+      tracker_effects:
+        morale_delta: -15
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "bash-no-cron"
+        severity: minor
+        note: "Cleanup script written but not scheduled. Manual-only execution defeats automation goal. Disk filled again in Module 4."
+        can_be_offset_by:
+          - docker
+          - cicd

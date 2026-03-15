@@ -1,0 +1,28 @@
+id: act-2-path-c
+title: "By the Book"
+act_number: 2
+
+narrative: >
+  You pinged first. It responded. You confirmed connectivity before
+  assuming access — a habit most engineers only develop after the
+  third time they've spent an hour debugging an SSH issue that turned
+  out to be a dead host. You're ahead of the curve.
+  Now you SSH in with a clear head and a confirmed target.
+
+tasks:
+  - id: task-2c-1
+    title: "Establish full connectivity baseline"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "ping -c 1 127.0.0.1"
+        expected_exit: 0
+        failure_message: "ping failed — try: ping -c 1 localhost"
+      - type: exit_code
+        command: "sudo ss -tlnp"
+        expected_exit: 0
+        failure_message: "ss -tlnp failed — try: sudo netstat -tlnp"
+    hints:
+      - "-c 3 limits ping to 3 packets. curl -w shows the HTTP response code."
+      - "A 000 HTTP response means nothing is listening on port 80. ss -tlnp shows what IS listening."
+      - "ping -c 3 127.0.0.1 && curl -s http://127.0.0.1 -o /dev/null -w \"%{http_code}\\n\" && sudo ss -tlnp"

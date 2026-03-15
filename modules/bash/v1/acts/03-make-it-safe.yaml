@@ -1,0 +1,117 @@
+id: act-3
+title: "Make it Safe"
+act_number: 3
+
+narrative: >
+  Thursday afternoon. Jordan sees the deploy script in the repo
+  and runs it against staging to test a config change.
+  It fails halfway through. The config file copy succeeded but
+  the service restart failed — and the script kept running anyway.
+  Staging is now in an inconsistent state: new config, old service.
+  Alex messages at 4:15 PM:
+  "Your script has no error handling. It failed halfway and kept
+  going. A script that continues after an error is more dangerous
+  than one that never ran. Fix it tonight. I want to see set -euo
+  pipefail, a log function, and a rollback mechanism. Tonight."
+
+tasks:
+  - id: task-3-1
+    title: "Add set flags and a log function"
+    xp: 70
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "set -euo pipefail"
+        failure_message: "set -euo pipefail not found — must be on line 2 after the shebang"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "log()"
+        failure_message: "log function not defined in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "tee -a"
+        failure_message: "log function must write to file with tee -a"
+    hints:
+      - "set -euo pipefail: -e exits on error, -u errors on unset var, -o pipefail catches pipe errors. Line 2, after shebang."
+      - "tee -a writes to both stdout AND the log file simultaneously. -a means append, not overwrite."
+      - "log() { local level=$1; local message=$2; echo \"[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $message\" | tee -a \"/var/log/deploy.log\"; }"
+
+  - id: task-3-2
+    title: "Add backup and rollback with trap"
+    xp: 80
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "backup_config()"
+        failure_message: "backup_config function not found in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "trap '"
+        failure_message: "trap not configured for ERR signal"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "rollback()"
+        failure_message: "rollback function not found in deploy.sh"
+    hints:
+      - "trap 'commands' ERR runs the commands whenever any command exits non-zero (with set -e active)."
+      - "$LINENO tells you exactly which line caused the failure."
+      - "trap 'log \"ERROR\" \"Failed at line $LINENO\"; rollback; exit 1' ERR — define rollback() before the trap."
+
+  - id: task-3-3
+    title: "Commit version 3 — the safe version"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh | wc -l"
+        pattern: "^[3-9]"
+        failure_message: "At least 3 commits needed on deploy script"
+    hints:
+      - "git add scripts/deploy.sh && git commit -m \"feat: add error handling, logging, backup and rollback to deploy script\""
+
+decision:
+  prompt: >
+    The script needs rollback capability. If a deployment fails
+    partway through, how does it recover?
+  options:
+    - id: option-g
+      label: "Backup before deploy, restore automatically on failure"
+      narrative: >
+        Alex reviews it Friday morning: "This is production-grade.
+        Automated rollback with a safety net. If I see this pattern
+        in your scripts for the rest of your career, I'll know
+        where you learned it." Technical debt -10.
+      tracker_effects:
+        morale_delta: 20
+        debt_delta: -10
+        severity_change: ""
+
+    - id: option-h
+      label: "Log the failure and exit cleanly — let a human decide"
+      narrative: >
+        Alex: "Conservative but honest. Automated rollback is better
+        but this is safer than continuing blindly. At least it stops."
+        A reasonable call early in your career.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-i
+      label: "Retry once before giving up"
+      narrative: >
+        Alex: "Retrying a failed deployment without understanding
+        why it failed can make things significantly worse. What if
+        the failure left the system in a bad state? Running again
+        doubles the damage. Never retry without knowing why it failed."
+        Technical debt +20.
+      tracker_effects:
+        morale_delta: -10
+        debt_delta: 20
+        severity_change: ""
+      yearly_review_flag:
+        id: "bash-blind-retry"
+        severity: minor
+        note: "Deploy script retries failed deployments without diagnosing failure cause, risking double damage on partial failures."
+        can_be_offset_by:
+          - docker
+          - cicd

@@ -1,0 +1,27 @@
+id: bash-scripting
+name: "Bash Scripting"
+version: "1.0.0"
+order_index: 3
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  Wednesday morning at Finstack. Alex has been watching the deployment
+  logs and noticed you've been manually running the same commands over
+  and over. Ten minutes each time. Three environments. Every config
+  change. Write a script or keep suffering. Over four acts, build a
+  production-ready deploy script from scratch — variables, logic, error
+  handling, logging, rollback — and schedule a log cleanup cron job that
+  fixes what you left behind on the mystery server.
+
+acts:
+  - id: act-1
+    file: acts/01-the-grind.yaml
+  - id: act-2
+    file: acts/02-make-it-smart.yaml
+  - id: act-3
+    file: acts/03-make-it-safe.yaml
+  - id: act-4
+    file: acts/04-set-it-and-forget-it.yaml
+
+endings_file: endings/endings.yaml

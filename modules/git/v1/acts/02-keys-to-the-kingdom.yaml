@@ -1,0 +1,112 @@
+id: act-2
+title: "Keys to the Kingdom"
+act_number: 2
+
+narrative: >
+  Git config is done. Alex messages again:
+  "SSH key next. Passwords are dead — GitHub dropped password auth
+  in 2021. Every engineer on this team authenticates via SSH key.
+  Also install gh CLI while you're at it. You'll need it this afternoon."
+  You open your terminal and start with the question every engineer
+  faces on a new machine: is there already a key here?
+
+tasks:
+  - id: task-2-1
+    title: "Check for existing SSH keys"
+    xp: 20
+    checks:
+      - type: exit_code
+        command: "ls -la ~/.ssh/ 2>/dev/null; true"
+        expected_exit: 0
+        failure_message: "Could not check ~/.ssh — this should always succeed"
+    hints:
+      - "ls -la shows hidden files and full permissions. ~/.ssh/ is a hidden directory."
+      - "Common key filenames: id_rsa, id_ed25519. The .pub file is the public key — safe to share."
+      - "ls -la ~/.ssh/ 2>/dev/null || echo 'No .ssh directory found'"
+
+  - id: task-2-2
+    title: "Install and authenticate gh CLI"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "gh --version"
+        expected_exit: 0
+        failure_message: "gh CLI not installed — run: sudo apt install gh -y"
+      - type: exit_code
+        command: "gh auth status"
+        expected_exit: 0
+        failure_message: "Not authenticated — run: gh auth login"
+      - type: regex_output
+        command: "gh auth status"
+        pattern: "Logged in to github.com"
+        failure_message: "gh auth status does not show logged in to github.com"
+    hints:
+      - "gh auth login is interactive — it will walk you through each step with prompts."
+      - "When gh asks which SSH key to use, select your key. It will upload the public key automatically."
+      - "sudo apt install gh -y && gh auth login — select: GitHub.com → SSH → Login with a web browser"
+
+  - id: task-2-3
+    title: "Verify SSH connection to GitHub"
+    xp: 30
+    checks:
+      - type: regex_output
+        command: "ssh -T git@github.com 2>&1 || true"
+        pattern: "successfully authenticated"
+        failure_message: "SSH connection to GitHub failed — run gh auth login and select your SSH key"
+      - type: exit_code
+        command: "gh auth status"
+        expected_exit: 0
+        failure_message: "gh auth status failed"
+    hints:
+      - "The 'does not provide shell access' message is correct and expected — confirms key is valid."
+      - "If you get 'Permission denied (publickey)' your key wasn't uploaded correctly."
+      - "ssh -T git@github.com (type yes if asked about authenticity) — look for 'Hi username!' response"
+
+decision:
+  prompt: >
+    You run ls -la ~/.ssh/ and find an existing key:
+    id_rsa and id_rsa.pub from about eight months ago.
+    You don't remember what it was for. Do you:
+  options:
+    - id: option-d
+      label: "Create a new dedicated ed25519 key for GitHub"
+      narrative: >
+        Clean approach. ed25519 is more secure than the old RSA key
+        anyway. You now have a dedicated GitHub key that can be
+        rotated independently of anything else. Alex would approve.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-e
+      label: "Reuse the existing RSA key"
+      narrative: >
+        It works — for now. But you don't know what else this key
+        is used for. In Act 4, a push fails unexpectedly because
+        the RSA key was also used by a deploy script Jamie left
+        on the server. Twenty minutes of debugging during the hotfix.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 15
+        severity_change: ""
+
+    - id: option-f
+      label: "Overwrite the existing key with a new one"
+      narrative: >
+        The old key is gone. Whatever it was used for no longer
+        works. You find out in Act 4 when a legacy deploy script
+        fails silently — the same script keeping the payment config
+        backup running. Technical debt +30. Alex is not pleased.
+      tracker_effects:
+        morale_delta: -15
+        debt_delta: 30
+        severity_change: ""
+      yearly_review_flag:
+        id: "git-key-overwrite"
+        severity: moderate
+        note: "Overwrote existing SSH key without investigating its usage, causing legacy deploy script failure."
+        can_be_offset_by:
+          - bash-scripting
+          - docker
+          - cicd

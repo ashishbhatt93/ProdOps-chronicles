@@ -1,0 +1,105 @@
+id: act-4
+title: "Green"
+act_number: 4
+
+narrative: >
+  The pipeline is green.
+
+  lint → build → push.
+  Every commit to main builds an image.
+  Every image is tagged with the commit that produced it.
+  The registry at localhost:5000 has the receipts.
+
+  You message Jordan.
+
+  You: "Pipeline is up. Want to test it?"
+  Jordan: "yes!! what do i do"
+
+tasks:
+  - id: task-4-1
+    title: "Set Jordan up"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "curl -s http://localhost:3000/api/v1/repos/$(git -C payment-dashboard remote get-url gitea 2>/dev/null | grep -o '[^/]*$' | sed 's/.git//')/collaborators -H \"Authorization: token ${GITEA_ADMIN_TOKEN:-}\" 2>/dev/null | python3 -c \"import sys; data=sys.stdin.read(); print('ok' if data else 'check-manually')\" 2>/dev/null || echo 'check-manually'"
+        expected_exit: 0
+        failure_message: "Could not verify collaborators — add Jordan via Gitea UI: repo → Settings → Collaborators"
+    hints:
+      - "In Gitea: payment-dashboard → Settings → Collaborators → Add Jordan's username with write access"
+      - "Jordan logs into Woodpecker at localhost:8000 using their Gitea credentials — OAuth handles it"
+      - "Tell Jordan: clone from localhost:3000, create a feature branch, change a .js file, open a PR"
+
+  - id: task-4-2
+    title: "Watch Jordan's build"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "curl -s http://localhost:5000/v2/payment-dashboard/tags/list | python3 -c \"import sys,json; data=json.load(sys.stdin); print('ok' if len(data.get('tags',[])) >= 2 else 'fail')\" 2>/dev/null || echo 'fail'"
+        pattern: "ok"
+        failure_message: "Less than 2 image tags in registry — Jordan's build hasn't pushed an image yet"
+    hints:
+      - "Open Woodpecker — Jordan's pipeline run should appear after their push"
+      - "Check the registry: curl -s http://localhost:5000/v2/payment-dashboard/tags/list"
+      - "You should see two tags: your commit SHA and Jordan's — two people, same pipeline, same result"
+
+  - id: task-4-3
+    title: "Document the pipeline"
+    xp: 150
+    checks:
+      - type: file_match
+        path: "payment-dashboard/README.md"
+        contains: "## CI/CD"
+        failure_message: "README.md missing ## CI/CD section"
+      - type: file_match
+        path: "payment-dashboard/package.json"
+        contains: "\"lint\":"
+        failure_message: "npm run lint script not found in package.json"
+    hints:
+      - "Add ## CI/CD section to README.md: describe the three stages, what triggers a build, how images are tagged"
+      - "Add lint script to package.json: \"scripts\": { \"lint\": \"eslint src/\" }"
+      - "The pipeline and local development should use the same command: npm run lint"
+
+decision:
+  prompt: >
+    The pipeline is green. Jordan's build is green. The registry has receipts.
+    What does a green pipeline actually mean?
+  options:
+    - id: option-j
+      label: "Every change was verified by the same environment, regardless of whose machine it came from"
+      narrative: >
+        Alex: "That's CI. Continuous Integration means every commit goes
+        through the same process. Your machine, Jordan's machine, a machine
+        that's never been touched — same result. That reproducibility is
+        the value. The green light means the code passed, not that it
+        passed on your specific setup."
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-k
+      label: "The code lints, builds, and produces a pushable image — ready for deployment"
+      narrative: >
+        Alex: "Correct for the scope of this pipeline. Lint and build
+        passing means the code is valid and the image is built.
+        The push step means a deployable artefact exists.
+        In a production pipeline you'd add tests, security scanning,
+        maybe a staging deploy. The stages are the same pattern.
+        You've built the foundation."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-l
+      label: "The code is probably fine — but you still need to test it manually"
+      narrative: >
+        Alex: "Depends on the pipeline. A pipeline with good test coverage
+        means the code is verified beyond 'probably fine'. This pipeline
+        lints and builds — it doesn't run the application tests.
+        That's the next thing to add. A green build is a starting point.
+        What it guarantees depends entirely on what's in it."
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""

@@ -1,0 +1,34 @@
+id: git
+name: "Git"
+version: "1.0.0"
+order_index: 2
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  The morning after the Mystery Server incident, Alex officially welcomes
+  you to the ops team — and immediately hands you your first real task:
+  set up your git environment properly. SSH keys, branch protection, pull
+  requests, conflict resolution — learn git the way professional engineers
+  use it. And while you're at it, set up the repo that will track your
+  entire ProdOps Chronicles journey.
+
+acts:
+  - id: act-1
+    file: acts/01-welcome-to-the-team.yaml
+  - id: act-2
+    file: acts/02-keys-to-the-kingdom.yaml
+  - id: act-2-path-new-key
+    file: acts/02a-clean-slate.yaml
+  - id: act-2-path-reuse-key
+    file: acts/02b-familiar-ground.yaml
+  - id: act-2-path-overwrite-key
+    file: acts/02c-point-of-no-return.yaml
+  - id: act-3
+    file: acts/03-build-the-repo.yaml
+  - id: act-4
+    file: acts/04-the-hotfix.yaml
+  - id: act-5
+    file: acts/05-leave-it-better.yaml
+
+endings_file: endings/endings.yaml

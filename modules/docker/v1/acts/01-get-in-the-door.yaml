@@ -1,0 +1,114 @@
+id: act-1
+title: "Get in the Door"
+act_number: 1
+
+narrative: >
+  Before any images get built or pushed, two things need to exist:
+  a local registry to work against while you learn, and a clean
+  authenticated Docker environment. You open ~/.docker/config.json
+  to check what's there before running docker login.
+  There's an entry already. Base64-encoded credentials for
+  jamie@finstack.io. Expired Docker Hub token. Jamie's.
+  Of course there is.
+  Clear it. Start clean. Then get the registry up.
+
+tasks:
+  - id: task-1-1
+    title: "Inspect and clear existing Docker credentials"
+    xp: 20
+    checks:
+      - type: exit_code
+        command: "cat ~/.docker/config.json 2>/dev/null || echo '{}'"
+        expected_exit: 0
+        failure_message: "Could not read docker config"
+      - type: regex_output
+        command: "cat ~/.docker/config.json 2>/dev/null || echo '{\"auths\":{}}'"
+        pattern: "\"auths\"\\s*:\\s*\\{\\s*\\}"
+        failure_message: "Docker auths not empty — run: docker logout"
+    hints:
+      - "docker logout clears credentials for the default registry (Docker Hub)."
+      - "If docker logout doesn't fully clear it: the auths block in ~/.docker/config.json holds credentials."
+      - "cat ~/.docker/config.json && docker logout && cat ~/.docker/config.json"
+
+  - id: task-1-2
+    title: "Spin up the local private registry"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "docker ps --filter name=prodops-registry --filter status=running -q"
+        expected_exit: 0
+        failure_message: "prodops-registry container not running — run: docker run -d --name prodops-registry -p 5000:5000 registry:2"
+      - type: regex_output
+        command: "docker ps --filter name=prodops-registry --format '{{.Status}}'"
+        pattern: "^Up"
+        failure_message: "Registry container status is not 'Up'"
+      - type: regex_output
+        command: "curl -s http://localhost:5000/v2/"
+        pattern: "^\\{\\}$"
+        failure_message: "Registry API not responding — wait a few seconds then retry"
+    hints:
+      - "registry:2 is the official Docker registry image. Port 5000 is the standard registry port."
+      - "curl http://localhost:5000/v2/ returns {} when the registry is healthy."
+      - "docker run -d --name prodops-registry -p 5000:5000 registry:2"
+
+  - id: task-1-3
+    title: "Build Jordan's Dockerfile and inspect the result"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:jordan"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:jordan not built — run: docker build -t finstack-dashboard:jordan . in ~/finstack/payment-dashboard"
+      - type: exit_code
+        command: "docker images finstack-dashboard:jordan -q"
+        expected_exit: 0
+        failure_message: "Image not found in local images"
+    hints:
+      - "docker build -t name:tag . builds from the Dockerfile in the current directory."
+      - "docker history shows every layer. docker inspect shows full image config as JSON."
+      - "cd ~/finstack/payment-dashboard && docker build -t finstack-dashboard:jordan . && docker images finstack-dashboard:jordan && docker history finstack-dashboard:jordan"
+
+decision:
+  prompt: >
+    You've pulled Jordan's image and run it. The dashboard loads on port 3000.
+    Alex messages: "Good. Now tell me what's wrong with it.
+    Look at the Dockerfile before you answer."
+    What do you lead with?
+  options:
+    - id: option-a
+      label: "The base image — ubuntu:latest is wrong"
+      narrative: >
+        Alex replies immediately: "Good. That's the first thing I see too.
+        What else?" You list the layer order and the missing .dockerignore.
+        Alex: "You read it properly. Fix the base image first. Show me
+        the size difference when you're done."
+        Jordan is in the channel and goes quiet. Then: "...huh. I didn't think about that."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-b
+      label: "Nothing obvious — it runs fine"
+      narrative: >
+        Alex: "Run: docker images. Tell me how big it is."
+        The image is 947MB. Alex: "A payment dashboard is 947 megabytes.
+        Think about what that means for a pull during an incident.
+        Look at the base image. Look at the layer order."
+        Technical debt +15. You'll need to be walked through what to fix.
+      tracker_effects:
+        morale_delta: -5
+        debt_delta: 15
+        severity_change: ""
+
+    - id: option-c
+      label: "I'd rewrite it from scratch"
+      narrative: >
+        Alex: "That's not a diagnosis. What specifically is wrong with
+        Jordan's file? Jordan worked on this Friday afternoon.
+        They deserve a proper answer." Technical debt +10.
+        Jordan is watching this conversation. The relationship takes a small hit.
+      tracker_effects:
+        morale_delta: -5
+        debt_delta: 10
+        severity_change: ""

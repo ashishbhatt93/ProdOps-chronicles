@@ -1,0 +1,110 @@
+id: act-4
+title: "Hand it Over"
+act_number: 4
+
+narrative: >
+  The stack runs. It survives restarts. The services find each other.
+
+  Alex hasn't said anything. That means it's fine.
+
+  Jordan messages at 16:20.
+
+  Jordan: "hey! heard you got the CI stack running 👀"
+  Jordan: "can i get access? want to set it up on my machine too"
+  Jordan: "is there like... a readme or something"
+
+  You look at the stack/ directory.
+  There is no README.
+
+tasks:
+  - id: task-4-1
+    title: "Write the README"
+    xp: 150
+    checks:
+      - type: file_match
+        path: "stack/README.md"
+        contains: "## Setup"
+        failure_message: "stack/README.md not found or missing ## Setup section"
+      - type: file_match
+        path: "stack/README.md"
+        contains: "## Services"
+        failure_message: "README missing ## Services section"
+      - type: file_match
+        path: "stack/README.md"
+        contains: "## Ports"
+        failure_message: "README missing ## Ports section"
+      - type: file_match
+        path: "stack/.env.example"
+        contains: "GITEA_DB_PASSWORD="
+        failure_message: "stack/.env.example not found or missing GITEA_DB_PASSWORD key"
+    hints:
+      - "Required sections: ## Services, ## Prerequisites, ## Setup, ## Ports, ## Stopping the stack"
+      - "Also create stack/.env.example with all required keys but no values — this is what Jordan copies"
+      - "The README should assume nothing. Step-by-step. Every command spelled out."
+
+  - id: task-4-2
+    title: "Jordan's first run"
+    xp: 100
+    checks:
+      - type: file_match
+        path: "slack-reply.txt"
+        contains: "docker compose -f stack/docker-compose.yml"
+        failure_message: "slack-reply.txt not found or missing the correct -f flag command"
+    hints:
+      - "Jordan ran docker compose up from the repo root — the compose file is at stack/docker-compose.yml"
+      - "The -f flag lets you specify a compose file path from any directory"
+      - "Write your reply in slack-reply.txt: the exact command Jordan needs to run"
+
+  - id: task-4-3
+    title: "Confirm Jordan is running"
+    xp: 50
+    checks:
+      - type: regex_output
+        command: "docker compose -f stack/docker-compose.yml ps --format json 2>/dev/null | python3 -c \"import sys,json; data=[json.loads(l) for l in sys.stdin if l.strip()]; print('ok' if any(d.get('Health')=='healthy' or d.get('State')=='running' for d in data) else 'fail')\""
+        pattern: "ok"
+        failure_message: "Stack services not healthy — run: docker compose -f stack/docker-compose.yml up -d"
+    hints:
+      - "docker compose -f stack/docker-compose.yml ps shows status of all services"
+      - "All services should show healthy or running. No restarts. No exits."
+
+decision:
+  prompt: >
+    Jordan got the stack running from your README. What matters most
+    about documentation you hand off to a teammate?
+  options:
+    - id: option-h
+      label: "It assumes nothing — complete steps for someone who wasn't there"
+      narrative: >
+        Alex reads the README at end of day.
+        Alex: "Stack looks clean. Volumes are right. Network is right.
+               README is actually useful. Jordan got it running first try."
+        Alex: "This is what the CI/CD module runs on. Don't break it."
+        That's the review. That's the approval.
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-i
+      label: "It covers the happy path clearly, even if edge cases are missing"
+      narrative: >
+        Jordan got running. The README worked for the main path.
+        Alex reviews: "Fine for now. Fill in the edge cases before
+        someone hits them at 2 AM." Reasonable outcome.
+        Not exceptional, but not a problem.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-j
+      label: "It exists — undocumented stacks are worse than imperfect docs"
+      narrative: >
+        True. A README with gaps is better than no README.
+        Jamie's stack had no README, which is why it took you
+        most of a day to understand it. You improved on that baseline.
+        But Jordan still needed help on one step.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 5
+        severity_change: ""

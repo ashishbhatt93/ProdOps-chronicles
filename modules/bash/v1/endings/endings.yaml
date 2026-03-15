@@ -1,0 +1,104 @@
+endings:
+  - id: ending-automated
+    title: "Automated"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "75"
+      - field: technical_debt
+        op: "<"
+        value: "30"
+    narrative: >
+      Friday 5:00 PM. You close your laptop.
+
+      In your repo: a deploy script under 70 lines that handles
+      argument validation, environment switching, production confirmation,
+      structured logging, backup and automatic rollback. A cleanup script
+      that runs itself every night at 2 AM. A git history that tells
+      the story of how both were built, commit by commit.
+
+      In Slack: Alex's message from 4:47 PM still on screen.
+      "Good week."
+
+      In the ops channel: someone has unpinned Jamie's deploy doc.
+      Nobody said anything. It just happened.
+
+      Next week is Docker. The script you built will need to build
+      and push a container image. You'll be ready.
+    post_mortem: >
+      Automation is not about being lazy. It's about being consistent.
+      A manual process run a hundred times will have a hundred slightly
+      different outcomes. An automated process run a hundred times will
+      have one outcome, logged, every time. The best scripts do one thing,
+      fail loudly when something goes wrong, leave a trail, and restore
+      the system to a known state when they fail. Every principle in this
+      module — set -euo pipefail, logging, backup, rollback, cron timing
+      — exists because someone, somewhere, learned it the hard way.
+      Now you know it the easy way.
+    performance_delta: 20
+    next_module: docker
+
+  - id: ending-works-on-my-machine
+    title: "It Works on My Machine"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "45"
+      - field: technical_debt
+        op: "<"
+        value: "60"
+    narrative: >
+      Friday 5:30 PM. The script works. The cron job is scheduled.
+      The PR is merged. You got there.
+
+      But the cleanup is running every hour instead of at 2 AM.
+      Priya noticed a performance dip during the afternoon.
+      The deploy script doesn't have automatic rollback.
+      Alex reviewed it and said "it'll do for now."
+
+      "It'll do for now" is not the same as "good work."
+      There's a difference and you know it.
+
+      Monday is Docker. Some of the debt you've accumulated will
+      surface there. You'll handle it.
+    post_mortem: >
+      A working script and a safe script are two different things.
+      Error handling, rollback, and correct scheduling are not optional
+      extras. They're the difference between a script and a production tool.
+      Technical debt in automation compounds. A missing rollback in the
+      deploy script becomes an incident in the Docker module.
+    performance_delta: 5
+    next_module: docker
+
+  - id: ending-technical-debt-collector
+    title: "Technical Debt Collector"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "45"
+    narrative: >
+      Friday 6:15 PM. You're still at your desk.
+
+      Jordan ran the script without arguments this afternoon. No
+      validation, no default — it deployed staging config to prod
+      via a silent default. Twenty minutes of cleanup. An incident
+      report. Alex was not in the room for the cleanup but he
+      read the incident report. Priya asked for a 1:1 on Monday.
+
+      The cron job isn't scheduled. The rollback isn't implemented.
+      The script works — when run correctly, by someone who knows
+      how to use it. Which is almost the same as the Google Doc
+      it was supposed to replace.
+
+      Priya's message at 6:00 PM:
+      "Let's sync Monday morning. Nothing urgent — just want to
+      make sure we set you up for success going forward."
+    post_mortem: >
+      Automation that requires perfect human operation isn't automation —
+      it's a complicated manual process. The entire point of writing a
+      script is to remove the human error vector. A script without
+      argument validation, without error handling, without rollback,
+      and without a schedule will cause an incident the first time
+      conditions are less than ideal. Which is always eventually.
+    performance_delta: -10
+    next_module: docker

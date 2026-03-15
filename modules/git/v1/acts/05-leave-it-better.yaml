@@ -1,0 +1,121 @@
+id: act-5
+title: "Leave it Better"
+act_number: 6
+
+narrative: >
+  4:02 PM. The fix is live. The team is relieved.
+  But there are three things left to do — and all three matter.
+  Document what happened. Decide what you share with the world.
+  Sync your progress so today's work isn't lost.
+  Alex messages: "Good day. Don't forget the post-mortem.
+  And sort your prodops sync before you log off."
+
+tasks:
+  - id: task-5-1
+    title: "Write the incident post-mortem"
+    xp: 80
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/docs/INCIDENT-001.md"
+        contains: "Root Cause"
+        failure_message: "INCIDENT-001.md not found or missing Root Cause section"
+      - type: file_match
+        path: "~/prodops-chronicles/docs/INCIDENT-001.md"
+        contains: "Prevention"
+        failure_message: "INCIDENT-001.md missing Prevention section"
+    hints:
+      - "You can't push directly to main — branch protection is on. Create a branch first."
+      - "git checkout -b docs/incident-001 && mkdir -p docs && write the file && git add . && git commit && git push && gh pr create && gh pr merge"
+      - "The post-mortem structure: Date, Severity, Timeline, Root Cause, Impact, Fix Applied, Prevention"
+
+  - id: task-5-2
+    title: "Clean up branches and review git log"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch | grep -v main | wc -l"
+        pattern: "^0$"
+        failure_message: "Stale local branches remain — run: git branch -d <branch-name>"
+      - type: exit_code
+        command: "git -C ~/prodops-chronicles log --oneline"
+        expected_exit: 0
+        failure_message: "git log failed"
+    hints:
+      - "-d deletes a merged branch safely. -D force-deletes regardless of merge status."
+      - "git log --oneline shows one line per commit. git log --oneline --graph shows branch topology."
+      - "git branch -d hotfix/payment-config && git branch -d docs/incident-001 && git log --oneline"
+
+  - id: task-5-3
+    title: "Telemetry consent — your data, your choice"
+    xp: 10
+    checks:
+      - type: exit_code
+        command: "prodops config get telemetry.enabled"
+        expected_exit: 0
+        failure_message: "Telemetry config not set — run one of the prodops config set commands"
+    hints:
+      - "There is no wrong answer here. All three tiers are equally valid."
+      - "Tier 1: private only. Tier 2: anonymous. Tier 3: public + anonymous."
+      - "prodops config set telemetry.enabled=false (Tier 1) OR prodops config set telemetry.enabled=true (Tier 2)"
+
+  - id: task-5-4
+    title: "prodops sync — your first progress sync"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "prodops sync"
+        expected_exit: 0
+        failure_message: "prodops sync failed — check prodops status and gh auth status"
+    hints:
+      - "prodops sync uses the SSH key and remote you configured in Acts 2 and 3."
+      - "If sync fails: prodops status to check platform health. gh auth status to verify GitHub auth."
+      - "prodops sync && gh repo view prodops-chronicles --web"
+
+decision:
+  prompt: >
+    Priya asks for an incident report for the compliance record.
+    How thorough do you go?
+  options:
+    - id: option-m
+      label: "Full post-mortem — timeline, root cause, impact, fix, prevention"
+      narrative: >
+        Priya reads it before EOD: "This is exactly what I needed.
+        Forwarding to compliance." Alex adds it to the team runbook.
+        Jordan asks if they can use your template. This document
+        will be referenced in future modules.
+      tracker_effects:
+        morale_delta: 20
+        debt_delta: -15
+        severity_change: ""
+
+    - id: option-n
+      label: "Brief summary — what broke, what you did"
+      narrative: >
+        Priya: "Thanks. Can you add the prevention section when
+        you have a moment?" It's fine. Not exceptional. The kind
+        of doc that answers today's questions but not tomorrow's.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-o
+      label: "Skip it — the fix speaks for itself"
+      narrative: >
+        Priya: "I need something for compliance. Can you write
+        something up?" You scramble at 4:25 PM to write from
+        memory. Details are fuzzy.
+        Alex sees it: "This is not a post-mortem. This is a tweet."
+        Technical debt +25. This goes on your performance record.
+      tracker_effects:
+        morale_delta: -20
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "git-no-postmortem"
+        severity: moderate
+        note: "No incident post-mortem filed for payment config issue despite explicit request from engineering manager. Compliance record incomplete."
+        can_be_offset_by:
+          - bash-scripting
+          - docker
+          - cicd

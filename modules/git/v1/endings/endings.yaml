@@ -1,0 +1,98 @@
+endings:
+  - id: ending-committed
+    title: "Committed"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "75"
+      - field: technical_debt
+        op: "<"
+        value: "30"
+    narrative: >
+      5:15 PM. You close your laptop. Today you:
+      Built a professional git environment from scratch. Generated and
+      secured SSH keys. Set up branch protection that actually stopped
+      a direct push. Resolved a real merge conflict without losing
+      anyone's work. Wrote a post-mortem that Priya forwarded to
+      compliance. Synced your progress to a repo that is now the
+      living record of your engineering journey.
+
+      Jordan messages at 5:20 PM:
+      "Good working with you today. That conflict resolve was textbook.
+      And that post-mortem template — can I steal it?"
+
+      Alex's message comes at 5:47 PM. Just four words:
+      "Good setup. Good habits."
+
+      From Alex, that's a standing ovation.
+    post_mortem: >
+      Git is not a backup tool. It's a collaboration platform, an audit
+      trail, and a communication medium. Every commit message is a message
+      to your future self and your teammates. Branch protection isn't
+      bureaucracy — it's the system that caught Jordan's conflict before
+      it hit main. SSH keys are credentials — treat them like passwords,
+      name them clearly, rotate them independently. And always write the
+      post-mortem. Always.
+    performance_delta: 20
+    next_module: bash-scripting
+
+  - id: ending-pushed-to-main
+    title: "Pushed to Main"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "45"
+      - field: technical_debt
+        op: "<"
+        value: "60"
+    narrative: >
+      5:30 PM. The fix is live. The post-mortem is thin but filed.
+      prodops sync ran. You got through today.
+
+      But Alex noticed the vague commit message. Priya noticed the
+      incomplete post-mortem. Jordan noticed their change was handled
+      a little hastily. Nothing was said directly. But nothing needed
+      to be. You can feel it.
+
+      Tomorrow is a new day. The habits you build in the next few
+      modules will matter. The yearly review is still six months away.
+    post_mortem: >
+      Speed without care creates invisible debt. Vague commit messages
+      seem harmless until six months later when nobody knows what
+      'fixed it' means. Incomplete post-mortems seem fine until the
+      same incident happens again. Good git hygiene isn't extra work —
+      it's the work. The code change is five minutes. The message,
+      the PR description, the post-mortem — that's the other half
+      of the job.
+    performance_delta: 5
+    next_module: bash-scripting
+
+  - id: ending-detached-head
+    title: "Detached HEAD"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "45"
+    narrative: >
+      6:10 PM. You're still at your desk untangling the aftermath.
+
+      The SSH key you overwrote was used by Jamie's deploy backup script.
+      That script failed silently at 5:00 PM. Nobody noticed until Priya
+      got an alert at 5:45 PM about missing backup snapshots. The
+      post-mortem you filed was three lines. Alex read it in eleven
+      seconds and said nothing, which is worse than saying something.
+
+      Priya's message at 6:05 PM:
+      "Let's find some time this week to sync on process.
+      Nothing urgent. Just want to make sure you're set up for success."
+
+      That's manager-speak for: this goes in the yearly review.
+    post_mortem: >
+      Every shortcut has a cost. Overwriting an unknown key costs you
+      when that key turns out to be load-bearing. Skipping the post-mortem
+      costs you when the same incident recurs and nobody documented the fix.
+      The yearly review isn't a snapshot of your worst day — it's the
+      sum of all your days. One bad module doesn't end a career.
+      But patterns do. Build better patterns.
+    performance_delta: -15
+    next_module: bash-scripting

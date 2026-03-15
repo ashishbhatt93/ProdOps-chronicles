@@ -1,0 +1,28 @@
+id: act-4-path-proper
+title: "Root Cause Fixed"
+act_number: 6
+
+narrative: >
+  You went the extra mile. Not just freeing disk but fixing the
+  system that caused the problem. The logrotate config is in place.
+  The cron job still runs but its output is now managed.
+  This server will not page anyone at 3 AM six months from now
+  because of an audit log. That's what good ops looks like.
+
+tasks:
+  - id: task-4p-1
+    title: "Verify logrotate is working correctly"
+    xp: 80
+    checks:
+      - type: exit_code
+        command: "sudo logrotate --force /etc/logrotate.d/audit-pipeline 2>/dev/null"
+        expected_exit: 0
+        failure_message: "logrotate force run failed"
+      - type: regex_output
+        command: "ls /var/log/audit-pipeline* 2>/dev/null"
+        pattern: "audit-pipeline"
+        failure_message: "Rotated log file not found"
+    hints:
+      - "--debug does a dry run. --force actually runs it regardless of schedule."
+      - "After --force, you should see audit-pipeline.log.1.gz alongside the original."
+      - "sudo logrotate --debug /etc/logrotate.d/audit-pipeline && sudo logrotate --force /etc/logrotate.d/audit-pipeline && ls -lh /var/log/audit-pipeline*"

@@ -1,0 +1,22 @@
+id: act-2-path-reuse-key
+title: "Familiar Ground"
+act_number: 3
+
+narrative: >
+  The old RSA key. You don't know its full history but it's here
+  and it might work. You load it into the agent and move forward.
+  Faster. But you're carrying an unknown quantity into the afternoon.
+
+tasks:
+  - id: task-2b-1
+    title: "Load the existing RSA key"
+    xp: 30
+    checks:
+      - type: regex_output
+        command: "ssh-add -l"
+        pattern: "RSA|rsa"
+        failure_message: "RSA key not loaded in agent — run: eval \"$(ssh-agent -s)\" && ssh-add ~/.ssh/id_rsa"
+    hints:
+      - "ssh-keygen -l shows the key fingerprint, type, and comment."
+      - "The fingerprint uniquely identifies the key. Match it in GitHub Settings to confirm it's the right key."
+      - "ssh-keygen -l -f ~/.ssh/id_rsa.pub && eval \"$(ssh-agent -s)\" && ssh-add ~/.ssh/id_rsa"

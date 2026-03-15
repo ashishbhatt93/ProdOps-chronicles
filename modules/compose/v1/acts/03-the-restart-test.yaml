@@ -1,0 +1,106 @@
+id: act-3
+title: "The Restart Test"
+act_number: 3
+
+narrative: >
+  13:47. Slack message from Priya.
+
+  Priya: "Hey — can you restart the CI stack after lunch?
+           Patching the host at 14:00. Should be back up by 14:30."
+
+  You bring the stack down. You wait. You bring it back up.
+
+  All services start. Green across the board.
+
+  Then you open Gitea.
+
+  The admin account is gone. The configuration is gone.
+  The setup wizard is back.
+
+  The repos are still there — Git data survived.
+  But everything else is gone. You message Alex.
+
+tasks:
+  - id: task-3-1
+    title: "Understand what happened"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "docker volume ls"
+        expected_exit: 0
+        failure_message: "docker volume ls failed"
+    hints:
+      - "Alex: 'Bind mount to a temp path. Classic.'"
+      - "docker volume ls shows only named volumes Docker manages. Bind mounts to host paths don't appear here."
+      - "Look for the volume definition in Jamie's compose file. Where does it mount Gitea data?"
+
+  - id: task-3-2
+    title: "Replace bind mounts with named volumes"
+    xp: 150
+    checks:
+      - type: regex_output
+        command: "grep 'gitea-data' stack/docker-compose.yml"
+        pattern: "gitea-data:"
+        failure_message: "Named volume gitea-data not found in docker-compose.yml"
+      - type: regex_output
+        command: "grep 'postgres-data' stack/docker-compose.yml"
+        pattern: "postgres-data:"
+        failure_message: "Named volume postgres-data not found in docker-compose.yml"
+    hints:
+      - "In gitea service, change: volumes: - /tmp/gitea-data:/data to volumes: - gitea-data:/data"
+      - "Do the same for postgres: volumes: - postgres-data:/var/lib/postgresql/data"
+      - "Declare both named volumes at the bottom: volumes: gitea-data: postgres-data:"
+
+  - id: task-3-3
+    title: "Verify persistence"
+    xp: 150
+    checks:
+      - type: regex_output
+        command: "docker volume ls"
+        pattern: "stack_gitea-data"
+        failure_message: "Named volume stack_gitea-data not found — bring the stack up and complete Gitea setup"
+    hints:
+      - "Bring the stack up, complete Gitea setup wizard, then: docker compose down && docker compose up -d"
+      - "Open Gitea — admin account should still be there. No setup wizard."
+      - "docker volume ls | grep stack — you should see stack_gitea-data and stack_postgres-data"
+
+  - id: task-3-4
+    title: "Add a healthcheck to Postgres"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep 'pg_isready' stack/docker-compose.yml"
+        pattern: "pg_isready"
+        failure_message: "Postgres healthcheck not found — add healthcheck with pg_isready"
+    hints:
+      - "Add to postgres: healthcheck: test: [\"CMD-SHELL\", \"pg_isready -U ${POSTGRES_USER}\"] interval: 10s timeout: 5s retries: 5"
+      - "Update woodpecker-server depends_on to include postgres: condition: service_healthy"
+
+decision:
+  prompt: >
+    Why did the Gitea data survive the restart in the repos but not the config?
+  options:
+    - id: option-f
+      label: "Git repos are stored in a different path that wasn't bind-mounted to /tmp"
+      narrative: >
+        Exactly. Gitea stores git repo data separately from its database and
+        config. The bind mount only covered /data — the config and database
+        directory. The git objects were in a path that happened to survive
+        the restart. Named volumes cover the full /data path and persist
+        everything Gitea needs to maintain state across restarts.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-g
+      label: "Git repos are stored on the host directly, not inside the container"
+      narrative: >
+        Close — but not quite. Gitea's git repos are inside the container's
+        data directory. They survived because the specific path wasn't covered
+        by the /tmp bind mount. Named volumes now cover the full /data tree,
+        so all Gitea state persists correctly across restarts.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""

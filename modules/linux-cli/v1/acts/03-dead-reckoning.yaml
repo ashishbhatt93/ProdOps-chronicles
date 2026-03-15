@@ -1,0 +1,72 @@
+id: act-2-converge
+title: "Dead Reckoning"
+act_number: 3
+
+narrative: >
+  You're in, you have your bearings, and you know this server has a
+  disk problem. Time to find it. No runbook. No one to ask.
+  You'll need to navigate the filesystem the way a detective works a
+  scene — methodically, without assuming anything.
+
+tasks:
+  - id: task-2-1
+    title: "Check overall disk usage"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "df -h"
+        expected_exit: 0
+        failure_message: "df failed — try: /bin/df -h"
+      - type: regex_output
+        command: "df -h"
+        pattern: "\\d+%"
+        failure_message: "df output did not contain percentage usage"
+    hints:
+      - "df stands for disk free. The -h flag makes output human-readable."
+      - "Run: df -h — look for any filesystem above 80% in the Use% column."
+      - "df -h | sort -k5 -rh — sorts by usage percentage, highest first."
+
+  - id: task-2-2
+    title: "Find the largest directories"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "sudo du -h /var --max-depth=2 2>/dev/null | sort -rh | head -20"
+        expected_exit: 0
+        failure_message: "du command failed — try with sudo"
+      - type: regex_output
+        command: "sudo du -h /var --max-depth=2 2>/dev/null | sort -rh | head -5"
+        pattern: "/var/log"
+        failure_message: "/var/log did not appear in top results"
+    hints:
+      - "du -h gives human-readable sizes. --max-depth=2 limits depth. sort -rh sorts largest first."
+      - "Run: sudo du -h /var --max-depth=2 | sort -rh | head -20"
+      - "sudo du -h /var --max-depth=2 | sort -rh | head -20 — the top result after /var is your culprit."
+
+decision:
+  prompt: >
+    You need to find what's eating disk space. How do you approach this?
+  options:
+    - id: option-d
+      label: "Check disk usage top-down (df then du)"
+      narrative: >
+        Smart approach. df shows you the full picture first —
+        you confirm /var is at 87% before drilling deeper.
+        Alex sees your method in the incident notes later and
+        says nothing — which from Alex means approval.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: "P3"
+
+    - id: option-e
+      label: "Check /var/log directly — it's always logs"
+      narrative: >
+        You're right this time — it is logs. But you got lucky.
+        You skipped the diagnostic step that would have caught it
+        even if it wasn't logs. Technical debt: +15.
+        You fixed it fast but you don't know why it happened.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 15
+        severity_change: ""

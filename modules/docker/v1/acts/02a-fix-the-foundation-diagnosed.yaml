@@ -1,0 +1,79 @@
+id: act-2-path-diagnosed
+title: "Fix the Foundation"
+act_number: 2
+
+narrative: >
+  Alex acknowledged your diagnosis. Jordan went quiet, then: "Okay. Show me."
+  You have two problems to fix: the base image and the layer order.
+  Fix both together while Jordan watches.
+  The Dockerfile currently uses FROM ubuntu:latest and copies source
+  before installing dependencies, breaking Docker's cache.
+
+tasks:
+  - id: task-2a-1
+    title: "Switch to a purpose-built, pinned base image"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.2"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.2 not built — build with the updated Dockerfile"
+      - type: regex_output
+        command: "cat ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "node:18-alpine"
+        failure_message: "Dockerfile must use node:18-alpine as base image"
+    hints:
+      - "node:18-alpine already has Node 18 installed. Remove the apt-get lines — they fail on Alpine anyway."
+      - "Alpine uses apk instead of apt. For extra packages: RUN apk add --no-cache packagename"
+      - "Change FROM ubuntu:latest to FROM node:18-alpine, remove the apt-get RUN lines, then: docker build -t finstack-dashboard:v0.2 ."
+
+  - id: task-2a-2
+    title: "Fix the layer order for correct cache behaviour"
+    xp: 70
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.3"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.3 not built"
+      - type: regex_output
+        command: "grep -n 'COPY' ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "package"
+        failure_message: "Dockerfile must copy package*.json before full source (COPY package*.json ./)"
+      - type: regex_output
+        command: "cat ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "npm ci"
+        failure_message: "Dockerfile must use npm ci instead of npm install"
+    hints:
+      - "Docker caches each layer. A layer is only rebuilt if its instruction changes OR an earlier layer changed."
+      - "npm ci reads package-lock.json exactly. Reproducible, deterministic. Never use npm install in a Dockerfile."
+      - "Order: COPY package*.json ./ → RUN npm ci --only=production → COPY . . → RUN npm run build"
+
+decision:
+  prompt: >
+    While fixing the base image you spot the layer ordering problem.
+    COPY . . before npm install means every code change triggers
+    a full re-install. Do you fix both now or stay focused?
+  options:
+    - id: option-a1
+      label: "Fix both — layer order while I'm already in here"
+      narrative: >
+        Alex: "Good instinct. You were already in the file. Two moved
+        lines. The ticket would have sat for two weeks and every build
+        in between would have been slower than it needed to be."
+        Jordan: "Wait — moving those two lines makes the cache work
+        better? That's... actually clever."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-a2
+      label: "Base image only — stay focused, ticket the rest"
+      narrative: >
+        Alex: "The ticket will sit there. You were already in the file."
+        Technical debt +10. The base image fix ships. The layer order
+        problem persists — every build re-runs npm install from scratch.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 10
+        severity_change: ""

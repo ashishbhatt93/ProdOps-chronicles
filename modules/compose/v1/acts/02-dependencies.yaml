@@ -1,0 +1,106 @@
+id: act-2
+title: "Dependencies"
+act_number: 2
+
+narrative: >
+  Gitea is running. Jamie's file is fixed.
+
+  But the stack isn't done. Woodpecker CI needs Postgres.
+  Postgres needs a network. The network doesn't exist yet.
+
+  You're not fixing someone else's work anymore. You're building.
+
+tasks:
+  - id: task-2-1
+    title: "Add Postgres"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep 'image:' stack/docker-compose.yml"
+        pattern: "postgres:15\\.4"
+        failure_message: "Postgres service not found or not using pinned version postgres:15.4"
+    hints:
+      - "Use the version from base_configs.yaml: postgres: '15.4'"
+      - "Add: image: postgres:15.4, environment: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB — all from .env"
+
+  - id: task-2-2
+    title: "Add Woodpecker server"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep 'image:' stack/docker-compose.yml"
+        pattern: "woodpeckerci/woodpecker-server:v2\\.3"
+        failure_message: "woodpecker-server not found or not using pinned version v2.3"
+    hints:
+      - "Add WOODPECKER_DB_USER, WOODPECKER_DB_PASSWORD, WOODPECKER_DB_NAME, and WOODPECKER_AGENT_SECRET to stack/.env"
+      - "woodpecker-server depends_on postgres"
+
+  - id: task-2-3
+    title: "Add a healthcheck to Gitea"
+    xp: 150
+    checks:
+      - type: regex_output
+        command: "grep -A3 'woodpecker-server:' stack/docker-compose.yml | grep 'service_healthy'"
+        pattern: "service_healthy"
+        failure_message: "woodpecker-server must depend on gitea with condition: service_healthy"
+      - type: regex_output
+        command: "grep -A5 'gitea:' stack/docker-compose.yml | grep 'healthcheck'"
+        pattern: "healthcheck"
+        failure_message: "Gitea service missing healthcheck block"
+    hints:
+      - "Add to gitea: healthcheck: test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:3000/api/healthz\"] interval: 10s timeout: 5s retries: 5 start_period: 30s"
+      - "Then update woodpecker-server depends_on: gitea: condition: service_healthy"
+
+  - id: task-2-4
+    title: "Fix the network"
+    xp: 150
+    checks:
+      - type: regex_output
+        command: "grep 'prodops-net' stack/docker-compose.yml"
+        pattern: "prodops-net"
+        failure_message: "Named network prodops-net not defined or not referenced in services"
+    hints:
+      - "Add to the bottom of docker-compose.yml: networks: prodops-net: driver: bridge"
+      - "Then add to every service: networks: - prodops-net"
+      - "Named networks give each service a stable DNS entry using its service name."
+
+  - id: task-2-5
+    title: "Verify inter-service DNS"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "docker compose -f stack/docker-compose.yml exec woodpecker-server wget -qO- http://gitea:3000/api/healthz 2>/dev/null || echo 'unreachable'"
+        pattern: "\"status\":\"pass\""
+        failure_message: "Woodpecker cannot reach Gitea by DNS name — check network configuration"
+    hints:
+      - "docker compose exec lets you run a command inside a running container."
+      - "Expected: {\"status\":\"pass\"} — if you see 'unreachable', check all services are on prodops-net."
+
+decision:
+  prompt: >
+    Five services. One network. They find each other by name.
+    What made the inter-service DNS work?
+  options:
+    - id: option-d
+      label: "The named network — default bridge doesn't do service discovery"
+      narrative: >
+        Exactly right. The default bridge network started in Docker
+        before Compose existed. Named networks are the Compose-native
+        way. Service names become DNS entries automatically.
+        Alex: "And now you know why every serious compose file defines its own network."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-e
+      label: "The depends_on order — services start in the right sequence"
+      narrative: >
+        Partially right, but depends_on controls startup order, not
+        DNS resolution. DNS works because of the named network.
+        A service on a named network can reach any other service on
+        that same network by service name, regardless of start order.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""

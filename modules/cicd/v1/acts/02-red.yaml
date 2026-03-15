@@ -1,0 +1,106 @@
+id: act-2
+title: "Red"
+act_number: 2
+
+narrative: >
+  The lint step failed.
+
+    lint | npm ci
+    lint | npm warn idealTree No description
+    lint | added 0 packages in 0.3s
+    lint | npx eslint src/
+    lint | ESLint couldn't find an eslint config file.
+
+  You run eslint locally. It works.
+  Of course it does. You have eslint installed globally on your machine.
+  The pipeline doesn't.
+
+  npm ci installs exactly what's in package.json.
+  eslint isn't in package.json.
+  So the pipeline installed nothing useful and then couldn't find eslint.
+
+  This is the gap. Your machine has years of globally installed tools.
+  The pipeline has only what you declare.
+
+tasks:
+  - id: task-2-1
+    title: "Add eslint as a project dependency"
+    xp: 100
+    checks:
+      - type: file_match
+        path: "payment-dashboard/package.json"
+        contains: "\"eslint\""
+        failure_message: "eslint not found in package.json — run: npm install --save-dev eslint"
+    hints:
+      - "npm install --save-dev eslint adds eslint to package.json under devDependencies"
+      - "Now when the pipeline runs npm ci, it will install eslint because the project explicitly requires it"
+      - "cd payment-dashboard && npm install --save-dev eslint && cat package.json | grep eslint"
+
+  - id: task-2-2
+    title: "Add an eslint config"
+    xp: 100
+    checks:
+      - type: file_match
+        path: "payment-dashboard/.eslintrc.json"
+        contains: "eslint:recommended"
+        failure_message: ".eslintrc.json not found or not using eslint:recommended ruleset"
+    hints:
+      - "eslint needs a config file to know what rules to apply. Without one, it refuses to run."
+      - "Create payment-dashboard/.eslintrc.json with: {\"extends\": \"eslint:recommended\", \"env\": {\"browser\": true, \"es2021\": true}}"
+      - "eslint:recommended is a built-in ruleset. No extra plugins required."
+
+  - id: task-2-3
+    title: "Push and read the next failure"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "git -C payment-dashboard log --oneline -- .eslintrc.json | head -1"
+        expected_exit: 0
+        failure_message: ".eslintrc.json not committed — add and commit before pushing"
+    hints:
+      - "git add package.json package-lock.json .eslintrc.json && git commit -m 'ci: add eslint config and dev dependency' && git push gitea main"
+      - "Watch the pipeline in Woodpecker — lint step will pass this time, build step will fail"
+      - "Read the full build step output before moving to Act 3. The error tells you exactly what's wrong."
+
+decision:
+  prompt: >
+    The lint step fixed. The build step failed for a different reason.
+    Alex messages: "What's it saying?"
+    What's the key insight from this debugging sequence so far?
+  options:
+    - id: option-d
+      label: "Each failure is independent — fix one at a time, read before acting"
+      narrative: >
+        Alex: "Exactly. You don't fix three things at once. You fix one,
+        push, read the next error. Systematic. Traceable. If you fix
+        three things and it still fails, you don't know which fix was wrong.
+        Fix one. Confirm. Repeat."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-e
+      label: "The pipeline is stricter than my local environment — that's the point"
+      narrative: >
+        Alex: "Yes. The pipeline is honest in a way your machine isn't.
+        Your machine has years of accumulated state. The pipeline has
+        only what you declare. That strictness is the value.
+        A pipeline that passes is a pipeline that will pass
+        on anyone's machine. Including a server at 3 AM."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-f
+      label: "I should have tested everything locally first to avoid multiple failures"
+      narrative: >
+        Alex: "You can't. Your local machine isn't the pipeline environment.
+        There's no way to fully replicate a fresh container by running things
+        locally. That's not a failure of preparation — that's the nature of CI.
+        Read the errors. Fix them one at a time. That's the process."
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 0
+        severity_change: ""

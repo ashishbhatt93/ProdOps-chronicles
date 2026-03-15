@@ -1,0 +1,24 @@
+id: act-4-path-shortcut
+title: "Bought Time"
+act_number: 7
+
+narrative: >
+  The disk is clear. Priya is happy. The compliance call will go fine.
+  But /tmp now has 12GB of compressed logs and no rotation config.
+  In a week, maybe two, this will page again — and whoever gets that
+  page will find logs in /tmp with no explanation of why they're there.
+  Today's fix is next week's mystery.
+
+tasks:
+  - id: task-4s-1
+    title: "At least document where you moved things"
+    xp: 30
+    checks:
+      - type: file_match
+        path: "/var/log/INCIDENT-NOTE.txt"
+        contains: "TODO"
+        failure_message: "Incident note file not found or missing TODO reference"
+    hints:
+      - "A text file in /var/log will be found by the next person investigating disk issues."
+      - "Include: date, what was wrong (cron job writing to audit-pipeline.log), action taken (moved to /tmp), recommended fix (logrotate)."
+      - "sudo nano /var/log/INCIDENT-NOTE.txt — include DATE, ISSUE, FIX, and TODO sections"

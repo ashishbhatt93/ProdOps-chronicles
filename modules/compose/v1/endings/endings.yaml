@@ -1,0 +1,112 @@
+endings:
+  - id: ending-composify
+    title: "Composify"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "70"
+      - field: technical_debt
+        op: "<"
+        value: "30"
+    narrative: >
+      Alex sends a message at 17:45. No greeting.
+
+      Alex: "Stack looks clean. Volumes are right. Network is right.
+             README is actually useful. Jordan got it running first try."
+      Alex: "This is what the CI/CD module runs on. Don't break it."
+
+      That's it. That's the review.
+
+      You look at stack/docker-compose.yml. Five services.
+      Named volumes. Named network. Healthchecks. Credentials in .env.
+      A README someone else could follow.
+
+      Jamie started this file. You finished it.
+      Then you replaced it entirely.
+
+      Module 6 starts here.
+    post_mortem: >
+      Docker Compose is not configuration — it's infrastructure as code.
+      Every service dependency, every credential reference, every health
+      condition is a decision encoded in a file that can be reviewed,
+      versioned, and handed off. Named volumes survive restarts because
+      Docker manages them. Named networks enable service discovery because
+      they give each container a stable DNS identity. Healthchecks turn
+      'container started' into 'service ready'. And documentation turns
+      infrastructure you built into infrastructure anyone can run.
+      Jamie built a stack. You built infrastructure.
+    performance_delta: 20
+    next_module: cicd
+
+  - id: ending-it-works-mostly
+    title: "It Works, Mostly"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "40"
+      - field: technical_debt
+        op: "<"
+        value: "60"
+    narrative: >
+      Jordan got the stack running. Eventually.
+
+      Jordan: "hey the README stopped at step 3"
+      Jordan: "what do i do after docker compose up"
+      Jordan: "nvm figured it out"
+
+      Alex reviews the stack at end of day.
+
+      Alex: "Volumes are right. Network is right. README is thin.
+             Jordan had to figure out the last bit themselves.
+             Fine for now. Fill it in before Module 6."
+
+      The stack works. The documentation is a stub.
+      Someone will hit the same gap Jordan did.
+      Probably at a worse time.
+    post_mortem: >
+      A working stack without complete documentation is a stack
+      that only the person who built it can reliably run. Jordan
+      got through it — but they had to. The goal of documentation
+      is that the next person doesn't have to figure anything out.
+      Complete setup instructions aren't nice-to-have. They're the
+      last step of every infrastructure task.
+    performance_delta: 5
+    next_module: cicd
+
+  - id: ending-jamies-pattern
+    title: "Jamie's Pattern"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "40"
+    narrative: >
+      Jordan cloned the repo. Followed the README. Ran the stack.
+
+      Then Jordan opened docker-compose.yml to check something.
+
+      Jordan: "uh"
+      Jordan: "there are passwords just... in the file"
+      Jordan: "is that normal"
+
+      Alex saw the message before you could reply.
+
+      Alex: "No. It is not normal."
+      Alex: "This is exactly what Jamie did in the file you were
+             given to fix. You fixed Jamie's credentials.
+             Then you hardcoded your own."
+      Alex: "Security review. Tomorrow. Rotate everything."
+
+      The stack runs. The credentials are exposed.
+      Anyone who can read the repo can read the passwords.
+
+      You learned what not to do in Act 1.
+      Then you did it anyway.
+    post_mortem: >
+      Knowing a rule and applying it under pressure are two different skills.
+      The first task of this module was to move Jamie's hardcoded credentials
+      to .env. That task existed precisely because hardcoded credentials are
+      a real problem. Repeating the same mistake in the same module, in a file
+      you own, is a signal worth paying attention to. The security review isn't
+      punishment — it's the work that should have happened before the commit.
+    performance_delta: -15
+    next_module: cicd

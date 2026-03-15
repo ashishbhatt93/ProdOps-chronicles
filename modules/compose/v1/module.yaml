@@ -1,0 +1,24 @@
+id: docker-compose
+name: "Docker Compose"
+version: "1.0.0"
+order_index: 5
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  You've containerised one service. Now learn to make them speak to each other.
+  Fix Jamie's broken compose file, build a multi-service stack with Gitea,
+  Woodpecker CI, and Postgres, add healthchecks and named volumes, survive
+  a restart test, and hand it over to Jordan with documentation they can actually follow.
+
+acts:
+  - id: act-1
+    file: acts/01-the-handoff.yaml
+  - id: act-2
+    file: acts/02-dependencies.yaml
+  - id: act-3
+    file: acts/03-the-restart-test.yaml
+  - id: act-4
+    file: acts/04-hand-it-over.yaml
+
+endings_file: endings/endings.yaml

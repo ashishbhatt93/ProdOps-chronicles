@@ -1,0 +1,143 @@
+id: act-4
+title: "The Hotfix"
+act_number: 5
+
+narrative: >
+  2:05 PM. Priya's message arrives:
+  "Payment dashboard showing wrong totals on transactions above £10k.
+  Traced to a decimal precision setting in config/payment.cfg.
+  There's also a rate limit value in config/limits.cfg that needs
+  updating — Jordan has context on that one. Deployment window closes
+  at 4:30 PM. Alex is still in the all-hands."
+  You and Jordan split the work over Slack. You'll take payment.cfg.
+  Jordan takes limits.cfg. You'll both push to the same repo.
+  Your branch protection rules are about to prove their worth.
+
+tasks:
+  - id: task-4-1
+    title: "Create a hotfix branch"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch --show-current"
+        pattern: "hotfix/payment-config"
+        failure_message: "Not on hotfix/payment-config branch — run: git checkout -b hotfix/payment-config"
+    hints:
+      - "git checkout -b creates a new branch and switches to it in one command."
+      - "Branch naming convention: type/description — hotfix/ for urgent fixes."
+      - "git checkout -b hotfix/payment-config && git branch"
+
+  - id: task-4-2
+    title: "Make and commit the fix"
+    xp: 50
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/config/payment.cfg"
+        contains: "decimal_precision=4"
+        failure_message: "payment.cfg not found or decimal_precision not set to 4"
+      - type: exit_code
+        command: "git -C ~/prodops-chronicles ls-remote origin hotfix/payment-config"
+        expected_exit: 0
+        failure_message: "Branch not pushed to remote — run: git push origin hotfix/payment-config"
+    hints:
+      - "git add stages changes. git commit records them. git push shares them."
+      - "git add config/payment.cfg stages only that file. git add . stages everything."
+      - "mkdir -p config && echo 'decimal_precision=4' > config/payment.cfg && git add config/payment.cfg && git commit -m \"fix: correct decimal precision in payment config\" && git push origin hotfix/payment-config"
+
+  - id: task-4-3
+    title: "Open a pull request"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "gh pr list --head hotfix/payment-config"
+        expected_exit: 0
+        failure_message: "PR not found — run: gh pr create --base main --head hotfix/payment-config"
+      - type: regex_output
+        command: "gh pr view --json baseRefName --jq '.baseRefName'"
+        pattern: "^main$"
+        failure_message: "PR does not target main branch"
+    hints:
+      - "gh pr create opens a PR from your current branch to main."
+      - "A good PR description answers: What changed? Why? How was it tested?"
+      - "gh pr create --title \"fix: correct decimal precision in payment config\" --base main --head hotfix/payment-config"
+
+  - id: task-4-4
+    title: "Resolve the merge conflict"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep -c '<<<<<<<' ~/prodops-chronicles/config/limits.cfg 2>/dev/null || echo 0"
+        pattern: "^0$"
+        failure_message: "Conflict markers still present in limits.cfg — remove all <<<, ===, >>> lines"
+      - type: file_match
+        path: "~/prodops-chronicles/config/limits.cfg"
+        contains: "rate_limit_standard"
+        failure_message: "limits.cfg missing rate_limit_standard — both rate limit values must be preserved"
+    hints:
+      - "Conflict markers are not code. Remove all three lines (<<<, ===, >>>) and leave only the final correct content."
+      - "Read Jordan's change carefully before discarding it. Both changes are valid — keep both."
+      - "git fetch origin && git merge origin/main — open limits.cfg, remove conflict markers, keep both rate limit lines, then git add config/limits.cfg && git commit"
+
+  - id: task-4-5
+    title: "Merge the PR and clean up"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "gh pr list --state merged --head hotfix/payment-config"
+        expected_exit: 0
+        failure_message: "PR not merged yet — run: gh pr merge --squash --delete-branch"
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch --show-current"
+        pattern: "^main$"
+        failure_message: "Not on main branch — run: git checkout main && git pull origin main"
+    hints:
+      - "--squash combines all your branch commits into one clean commit on main."
+      - "--delete-branch removes the remote branch after merge."
+      - "gh pr merge --squash --delete-branch && git checkout main && git pull origin main"
+
+decision:
+  prompt: >
+    You've made your fix to config/payment.cfg and you're ready
+    to commit. How do you write the commit message?
+  options:
+    - id: option-j
+      label: "Conventional commit: fix: correct decimal precision in payment config"
+      narrative: >
+        When Alex reviews the PR, the commit message is the first
+        thing he sees. "Good." That's all he says. Coming from Alex,
+        that's a standing ovation.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-k
+      label: "Vague: fixed it"
+      narrative: >
+        Alex reviews the PR: "What did you fix? For what? Why?
+        This commit message tells me nothing. In six months nobody
+        will know what this change was for. Rewrite it."
+        You amend the commit during the review window. Costs 15 minutes.
+      tracker_effects:
+        morale_delta: -15
+        debt_delta: 20
+        severity_change: ""
+      yearly_review_flag:
+        id: "git-vague-commits"
+        severity: minor
+        note: "Vague commit message 'fixed it' noted by senior SRE during code review. Required amendment mid-review window."
+        can_be_offset_by:
+          - bash-scripting
+          - docker
+          - cicd
+
+    - id: option-l
+      label: "Over-detailed paragraph message"
+      narrative: >
+        Alex: "Commit messages aren't essays. First line: what and why,
+        under 72 characters. Body: optional context if truly needed.
+        You wrote a short story. Edit it." Technical debt +10.
+      tracker_effects:
+        morale_delta: -5
+        debt_delta: 10
+        severity_change: ""

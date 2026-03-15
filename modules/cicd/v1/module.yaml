@@ -1,0 +1,25 @@
+id: cicd
+name: "CI/CD"
+version: "1.0.0"
+order_index: 6
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  The stack is running. Now make it do something. Connect Gitea to Woodpecker,
+  push the payment dashboard into your self-hosted repo, write a three-stage
+  pipeline that lints, builds, and pushes a Docker image on every commit,
+  debug three systematic failures caused by environment assumptions, and hand
+  the green pipeline off to Jordan with documentation they can run on their own machine.
+
+acts:
+  - id: act-1
+    file: acts/01-the-next-step.yaml
+  - id: act-2
+    file: acts/02-red.yaml
+  - id: act-3
+    file: acts/03-systematic.yaml
+  - id: act-4
+    file: acts/04-green.yaml
+
+endings_file: endings/endings.yaml

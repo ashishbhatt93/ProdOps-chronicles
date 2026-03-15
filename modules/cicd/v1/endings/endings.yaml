@@ -1,0 +1,179 @@
+endings:
+  - id: ending-green
+    title: "Green"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "70"
+      - field: technical_debt
+        op: "<"
+        value: "30"
+    narrative: >
+      Priya posts in #engineering at 17:00.
+
+      ---
+      Q1 Engineering Review — Finstack SRE
+
+      This quarter marked the onboarding of our newest SRE.
+
+      Module completions: Linux CLI, Git, Bash Scripting,
+      Docker, Docker Compose, CI/CD.
+
+      Notable contributions:
+
+      The mystery server in week one had 85% disk utilisation,
+      no documentation, and no owner. It was diagnosed and resolved
+      the same day. That set the tone.
+
+      The deploy script written in week two is still running in staging.
+      It has not broken once.
+
+      The CI stack — Gitea, Woodpecker, Postgres — was built from a
+      broken compose file left by a previous team member. It was fixed,
+      extended, documented, and handed off. Jordan was running builds
+      within an hour of getting access.
+
+      The CI/CD pipeline went green on the sixth push after three
+      systematic failures. Each failure was diagnosed correctly.
+      No guessing. No asking someone else to fix it.
+
+      Areas for continued growth: Kubernetes, infrastructure as code,
+      observability. These are next.
+
+      The foundation is solid.
+
+      — Priya
+      ---
+
+      You read it twice.
+
+      Alex messages twenty minutes later.
+
+      Alex: "Pipeline's clean. Stack's documented. Good quarter."
+
+      That's it. No ceremony.
+
+      You open Woodpecker. Jordan's latest build is green.
+      Yours is green. The registry has the receipts.
+
+      You started with a mystery server and an 85% full disk.
+      You end with infrastructure that runs itself.
+
+      That's the foundation. v2.0 starts here.
+    post_mortem: >
+      CI/CD is not a tool — it's a discipline. A pipeline that passes
+      is a pipeline that makes no assumptions about the environment that
+      runs it. Every dependency declared. Every path explicit. Every
+      credential in a secret store, never in a file. Three failures to
+      get to green is not a bad outcome — it's the normal outcome.
+      The failures were informative. The fixes were systematic. The
+      result is a pipeline that will build any future commit from any
+      machine with the same result. That reproducibility is the point.
+      Everything in this module builds on everything that came before it.
+      The Dockerfile from Module 4. The deploy script from Module 3.
+      The git workflow from Module 2. The Linux habits from Module 1.
+      CI/CD doesn't replace those things. It runs them automatically,
+      consistently, on every commit, forever.
+    performance_delta: 20
+    next_module: null
+
+  - id: ending-half-a-pipeline
+    title: "Half a Pipeline"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "40"
+      - field: technical_debt
+        op: "<"
+        value: "60"
+    narrative: >
+      Priya posts the Q1 review in #engineering.
+
+      The CI/CD pipeline lints and builds on every push to main.
+      The push stage was not completed — images are built but not
+      published to the registry. The pipeline validates code but
+      does not produce deployable artefacts.
+
+      This is half a pipeline. Lint and build without push means
+      nothing ships automatically. The value of CI/CD is the full
+      loop: validate, build, publish. Stopping at build leaves
+      the last step — the one that actually delivers — as a
+      manual process.
+
+      The stack itself is clean. The compose file is documented.
+      Jordan had no trouble getting running.
+
+      Complete the push stage before Q2.
+
+      — Priya
+
+      Alex doesn't message.
+
+      Jordan's build is green on the steps that exist.
+      The registry is empty.
+
+      You know what's missing.
+    post_mortem: >
+      A CI pipeline that lints and builds but doesn't publish is
+      a pipeline that validates code but doesn't deliver software.
+      The value of the push stage isn't just the image — it's the
+      artefact that makes deployment possible. Without it, every
+      deployment is still a manual step. Half a loop is better than
+      no loop. It's not the same as a complete loop.
+    performance_delta: 5
+    next_module: null
+
+  - id: ending-third-time
+    title: "Third Time"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "40"
+    narrative: >
+      Jordan cloned the repo. Opened the PR. Watched the pipeline run.
+
+      Then Jordan read .woodpecker.yml.
+
+      Jordan: "hey quick question"
+      Jordan: "are these docker hub credentials supposed to be
+               in the pipeline file"
+      Jordan: "like in plain text"
+
+      You already know what Alex is going to say.
+
+      Alex: "This is the third time."
+      Alex: "Module 4. Module 5. Now Module 6."
+      Alex: "We've had this conversation twice. You've seen what
+             happens. You've fixed it in other people's files."
+      Alex: "Rotate the credentials. Use Woodpecker secrets.
+             Security review Friday."
+
+      Priya's review arrives at 17:00.
+
+      The CI stack is noted. The pipeline is noted.
+      The credential exposure is noted.
+
+      One line near the end:
+
+      "The pattern of hardcoded credentials across three modules
+       suggests a gap between knowing the rule and applying it
+       under pressure. This will be a focus area in Q2."
+
+      Jordan's build is green.
+      The pipeline works.
+      The credentials are already being rotated.
+
+      You know the rule.
+      You've always known the rule.
+      The gap is somewhere else.
+    post_mortem: >
+      Knowing a rule under normal conditions and applying it under
+      pressure are different skills. The credential rule is simple:
+      secrets go in secret stores, never in files that get committed.
+      Three modules. Three exposures. Each time the fix was the same.
+      Each time the mistake was the same. The Q2 focus area isn't
+      the rule — you know the rule. It's the moment before the commit
+      when the rule needs to be applied. Build that habit at the
+      keyboard, not in the post-mortem.
+    performance_delta: -15
+    next_module: null

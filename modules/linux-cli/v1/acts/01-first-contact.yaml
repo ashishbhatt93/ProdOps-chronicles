@@ -1,0 +1,98 @@
+id: act-1
+title: "First Contact"
+act_number: 1
+
+narrative: >
+  You stare at Alex's Slack message. 127.0.0.1. You recognise that IP —
+  it's localhost. Either Alex made a typo, or this "mystery server" is
+  closer than you expected. Either way, you need to get in.
+  Your terminal is open. What's your first move?
+
+tasks:
+  - id: task-1-1
+    title: "SSH into the server"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "ssh -o BatchMode=yes -o ConnectTimeout=5 prodops@127.0.0.1 exit"
+        expected_exit: 0
+        failure_message: "SSH connection failed — is SSH running? Try: sudo systemctl start ssh"
+      - type: regex_output
+        command: "hostname"
+        pattern: "^[a-zA-Z0-9\\-]+"
+        failure_message: "hostname did not return a value"
+    hints:
+      - "The SSH command follows the pattern: ssh username@host. You have both."
+      - "Try: ssh prodops@127.0.0.1 — once connected, run: hostname"
+      - "Full sequence: ssh prodops@127.0.0.1 (type yes if asked about authenticity) then hostname"
+
+  - id: task-1-2
+    title: "Get your bearings — who are you and where are you?"
+    xp: 30
+    checks:
+      - type: exit_code
+        command: "whoami"
+        expected_exit: 0
+        failure_message: "whoami failed — something is very wrong"
+      - type: regex_output
+        command: "uname -a"
+        pattern: "Linux"
+        failure_message: "uname did not return Linux kernel info"
+      - type: exit_code
+        command: "uptime"
+        expected_exit: 0
+        failure_message: "uptime command failed"
+    hints:
+      - "Run each command one at a time and read the output carefully."
+      - "whoami = your username. uname -a = kernel info. uptime = load average."
+      - "Just run them: whoami && hostname && uname -a && uptime && w"
+
+decision:
+  prompt: >
+    Alex has given you an IP and nothing else. Before you SSH in,
+    what do you do?
+  options:
+    - id: option-a
+      label: "SSH in immediately"
+      narrative: >
+        You SSH in without checking anything first. You're in —
+        but you have no baseline. You don't know if the server
+        was reachable five minutes ago or five days ago.
+        Alex notices you jumped straight in. No comment. Yet.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 10
+        severity_change: ""
+      yearly_review_flag:
+        id: "linux-cli-no-baseline"
+        severity: minor
+        note: "Connected to server without establishing connectivity baseline or gathering context."
+        can_be_offset_by:
+          - git
+          - bash-scripting
+
+    - id: option-b
+      label: "Ask Alex for more context"
+      narrative: >
+        Alex replies after four minutes:
+        "Payment audit log server. Runs a log aggregator and a cron job.
+        That's all I know. Jamie set it up. Just find what's eating disk."
+        Not much — but better than nothing. Alex adds: "Good call asking
+        first. Don't break anything."
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-c
+      label: "Check connectivity first (ping / curl)"
+      narrative: >
+        You ping 127.0.0.1. It responds immediately — of course it does,
+        it's localhost. But the habit is correct. You've just confirmed
+        network connectivity before touching anything else.
+        When you mention this to Alex later, they say:
+        "Most juniors skip that step. Don't stop doing it."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: "P3"

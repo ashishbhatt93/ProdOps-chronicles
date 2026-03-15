@@ -1,0 +1,133 @@
+id: act-2
+title: "Make it Smart"
+act_number: 2
+
+narrative: >
+  Thursday morning. Alex reviews version 1:
+  "Good start. But it does the same thing regardless of environment.
+  Staging and prod are not the same. The script should know the
+  difference — different servers, different confirmation requirements,
+  different risk levels. And that echo block you have? That's going
+  to be three environments times three config steps. Write a function.
+  Don't repeat yourself."
+  You open deploy.sh. Time to add a brain.
+
+tasks:
+  - id: task-2-1
+    title: "Add conditionals — environment-aware behaviour"
+    xp: 50
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "case \"$ENVIRONMENT\""
+        failure_message: "case statement not found in deploy.sh"
+      - type: regex_output
+        command: "~/prodops-chronicles/scripts/deploy.sh invalid 2>&1; echo $?"
+        pattern: "1$"
+        failure_message: "Script should exit 1 for invalid environment"
+      - type: regex_output
+        command: "~/prodops-chronicles/scripts/deploy.sh staging 2>&1"
+        pattern: "staging"
+        failure_message: "Script should reference staging when given staging argument"
+    hints:
+      - "case is cleaner than if/elif for matching a variable against multiple values. Each option ends with ;;"
+      - "DEPLOY_HOST and DEPLOY_PATH are set inside the case block, available to the rest of the script."
+      - "Add: case \"$ENVIRONMENT\" in staging) DEPLOY_HOST=\"staging.finstack.internal\" ;; prod) ... ;; *) echo \"ERROR\"; exit 1 ;; esac"
+
+  - id: task-2-2
+    title: "Extract logic into functions"
+    xp: 60
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "deploy_config()"
+        failure_message: "deploy_config function not found in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "local env="
+        failure_message: "Function must use local variables"
+      - type: regex_output
+        command: "~/prodops-chronicles/scripts/deploy.sh staging config/payment.cfg 2>&1"
+        pattern: "Deployment complete"
+        failure_message: "Script did not output 'Deployment complete' — check deploy_config function"
+    hints:
+      - "local variables inside functions don't pollute the global script namespace. Always use local."
+      - "$1 inside a function is the first argument to the function, not to the script."
+      - "Define the function BEFORE you call it. Bash reads top to bottom."
+
+  - id: task-2-3
+    title: "Add the production confirmation gate"
+    xp: 50
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "Type CONFIRM to proceed"
+        failure_message: "Production confirmation prompt not found in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "CONFIRM\""
+        failure_message: "Script must check for exact string CONFIRM"
+    hints:
+      - "read -p prints a prompt and waits for input. The input is stored in the variable name after the prompt."
+      - "[[ \"$confirmation\" != \"CONFIRM\" ]] is case-sensitive — 'confirm' will not match 'CONFIRM'."
+      - "if [[ \"$ENVIRONMENT\" == \"prod\" ]]; then read -p \"Type CONFIRM to proceed: \" confirmation; if [[ \"$confirmation\" != \"CONFIRM\" ]]; then exit 0; fi; fi"
+
+  - id: task-2-4
+    title: "Commit version 2"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh | wc -l"
+        pattern: "^[2-9]"
+        failure_message: "At least 2 commits needed on deploy script — commit your changes"
+    hints:
+      - "git add scripts/deploy.sh && git commit -m \"feat: add environment logic, deploy function, prod confirmation gate\""
+
+decision:
+  prompt: >
+    Alex asks: "What happens if someone runs this against prod at 2 AM,
+    half asleep, and types the wrong environment?"
+  options:
+    - id: option-d
+      label: "Add explicit prod confirmation — type CONFIRM to proceed"
+      narrative: >
+        Alex: "Standard practice for prod deployments. Every team
+        I've worked on has some version of this. Good instinct."
+        In Act 3, Jordan accidentally targets prod — the confirmation
+        prompt stops them cold. No damage done.
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-e
+      label: "Add a --dry-run flag — preview without executing"
+      narrative: >
+        Alex: "Dry-run is excellent practice. Shows your work
+        before committing to it. Used by Terraform, Ansible,
+        rsync — the best tools all have it." Morale +10.
+        Technical debt -5 for reducing risk proactively.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: -5
+        severity_change: ""
+
+    - id: option-f
+      label: "Leave it — engineers should know what they're running"
+      narrative: >
+        Alex says nothing. Which means he's writing a note.
+        Jordan runs the script against prod on Thursday afternoon
+        without reading the environment argument carefully.
+        Staging config deploys to prod. Twenty minutes of cleanup.
+        Priya asks for an incident report. Technical debt +25.
+      tracker_effects:
+        morale_delta: -15
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "bash-no-prod-gate"
+        severity: moderate
+        note: "No production confirmation gate in deploy script. Jordan deployed staging config to prod. Incident report required."
+        can_be_offset_by:
+          - docker
+          - cicd

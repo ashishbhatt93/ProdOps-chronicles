@@ -1,0 +1,102 @@
+id: act-4-converge
+title: "Resolution"
+act_number: 5
+
+narrative: >
+  It's 1:45 PM. You know what the problem is. You know how it happened.
+  Now you need to fix it cleanly — and document what you did so
+  the next person (possibly future you) isn't starting from scratch.
+  Priya checks in: "Compliance call is at 3. Will we be ready?"
+
+tasks:
+  - id: task-4-1
+    title: "Free up disk space"
+    xp: 80
+    checks:
+      - type: exit_code
+        command: "sudo find /var/log -name '*.log' -mtime +7 2>/dev/null | head -1"
+        expected_exit: 0
+        failure_message: "find command failed — check sudo permissions"
+      - type: regex_output
+        command: "df -h /var | tail -1 | awk '{print $5}'"
+        pattern: "^([0-9]|[1-7][0-9])%$"
+        failure_message: "Disk usage on /var is still at or above 80%"
+    hints:
+      - "-mtime +7 means files modified more than 7 days ago."
+      - "find locates the files, -exec runs gzip on each. gzip compresses in-place."
+      - "sudo find /var/log -name '*.log' -mtime +7 -exec gzip {} \\; && df -h /var"
+
+  - id: task-4-2
+    title: "Set up log rotation"
+    xp: 100
+    checks:
+      - type: file_match
+        path: "/etc/logrotate.d/audit-pipeline"
+        contains: "/var/log/audit-pipeline.log"
+        failure_message: "logrotate config not found or missing log path"
+      - type: file_match
+        path: "/etc/logrotate.d/audit-pipeline"
+        contains: "compress"
+        failure_message: "logrotate config missing compress directive"
+      - type: exit_code
+        command: "sudo logrotate --debug /etc/logrotate.d/audit-pipeline"
+        expected_exit: 0
+        failure_message: "logrotate debug run failed — check config syntax"
+    hints:
+      - "logrotate configs live in /etc/logrotate.d/. Each directive controls a rotation behaviour."
+      - "daily = rotate every day. rotate 14 = keep 14 days. compress = gzip rotated files. copytruncate = truncate live file."
+      - "sudo nano /etc/logrotate.d/audit-pipeline — paste the config block — sudo logrotate --debug /etc/logrotate.d/audit-pipeline"
+
+  - id: task-4-3
+    title: "Fix file permissions"
+    xp: 70
+    checks:
+      - type: regex_output
+        command: "stat -c '%a' /var/log/audit-pipeline.log"
+        pattern: "^640$"
+        failure_message: "File permissions are not 640"
+      - type: regex_output
+        command: "stat -c '%U' /var/log/audit-pipeline.log"
+        pattern: "^root$"
+        failure_message: "File is not owned by root"
+    hints:
+      - "chmod 640 = owner can read/write, group can read, others nothing."
+      - "640 breaks down as: 6 (rw-) for owner, 4 (r--) for group, 0 (---) for others."
+      - "sudo chmod 640 /var/log/audit-pipeline.log && sudo chown root:adm /var/log/audit-pipeline.log"
+
+decision:
+  prompt: >
+    The incident is resolved but you need to close it properly.
+    How do you document what happened?
+  options:
+    - id: option-i
+      label: "Write a proper post-mortem note"
+      narrative: >
+        You write a clear incident summary: timeline, root cause,
+        fix applied, permanent solution recommended.
+        Priya reads it before the compliance call and says:
+        "This is exactly what I needed. Thank you."
+        Alex messages: "Good docs. Jamie never wrote anything down."
+      tracker_effects:
+        morale_delta: 20
+        debt_delta: -15
+        severity_change: "P4"
+
+    - id: option-j
+      label: "Tell Priya it's fixed verbally"
+      narrative: >
+        Priya is relieved but asks: "Can you send me a quick summary
+        for the compliance call?" You scramble to write something
+        from memory. Some details are fuzzy. Technical debt: +20.
+        The fix is solid but the knowledge lives only in your head.
+      tracker_effects:
+        morale_delta: -10
+        debt_delta: 20
+        severity_change: ""
+      yearly_review_flag:
+        id: "linux-cli-no-postmortem"
+        severity: minor
+        note: "Incident resolved without written post-mortem. Verbal-only closeout required scrambling before compliance call."
+        can_be_offset_by:
+          - git
+          - bash-scripting

@@ -1,0 +1,106 @@
+endings:
+  - id: ending-containerised
+    title: "Containerised"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "75"
+      - field: technical_debt
+        op: "<"
+        value: "30"
+    narrative: >
+      Wednesday 5:30 PM.
+
+      In the local registry: finstack-dashboard:1.0.0. Clean.
+      No root. No secrets. No node_modules. Alpine base. Correct layer
+      order. 142MB. Jordan's original was 947MB.
+
+      On Docker Hub: the same image. Public. Tagged.
+
+      Alex's review comes in at 5:15 PM. Three comments. All minor.
+      Then: "Approved. Merge when ready."
+
+      Priya's message at 5:28 PM:
+      "Staging deploy is green. Payment dashboard is running in a
+      container for the first time. Nice work."
+
+      Jordan at 5:45 PM:
+      "I learned more from watching you fix my Dockerfile than from
+      anything I've read about Docker. Can I steal your .dockerignore template?"
+    post_mortem: >
+      A working container and a production-ready container are two different
+      things. Wrong base image: silent breakage on next upstream release,
+      excessive size. Wrong layer order: cache invalidated on every code change.
+      Running as root: full privilege escalation if compromised. Missing
+      .dockerignore: secrets and credentials in image layer history. None of
+      these surface in a basic smoke test. All matter in production.
+      Read every Dockerfile you inherit. Run docker history on every image
+      you didn't build. Check the running user. Check the build context.
+    performance_delta: 20
+    next_module: docker-compose
+
+  - id: ending-it-deploys
+    title: "It Deploys"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "45"
+      - field: technical_debt
+        op: "<"
+        value: "60"
+    narrative: >
+      Wednesday 6:00 PM.
+
+      The image is clean. Staging is green. The Docker Hub push went through.
+      You got there.
+
+      But the deploy script still has two separate steps — build the image,
+      then run the deployment. The ticket to integrate them is open.
+      Alex reviewed the PR and left one comment: "When does that ticket close?"
+
+      Priya: "Good work. Staging is happy."
+      She doesn't mention the open ticket. She will.
+    post_mortem: >
+      Containerisation done. Automation incomplete. A deploy process that
+      requires two manual steps instead of one is a deploy process that
+      will eventually be run with one step forgotten. The deploy script
+      was purpose-built to be extended. Technical debt in automation
+      doesn't disappear, it just waits for an inconvenient moment.
+    performance_delta: 5
+    next_module: docker-compose
+
+  - id: ending-image-pull-error
+    title: "Image Pull Error"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "45"
+    narrative: >
+      Wednesday 7:15 PM. You're still at your desk.
+
+      Alex ran docker history on the image after it landed on Docker Hub.
+      Layer 7. The .env.local contents. There it is. Jordan's Stripe test
+      key, baked into the image history, visible to anyone who pulls it.
+
+      Alex: "The image is on Docker Hub. It needs to come down.
+      The key needs to be rotated. Then we talk about how this happened."
+
+      The staging deploy is reverted. Prod cutover is pushed to next week.
+      Priya's message at 6:05: "Let's sync tomorrow."
+
+      Alex at 7:05 PM:
+      "docker history is public. Always. On every image you push.
+      Whatever is in a layer stays in that image forever unless you
+      rebuild from scratch. A secret in an image is a permanent secret.
+      There is no patch for it. There is only rotate and rebuild.
+      You know this now. Don't learn it twice."
+    post_mortem: >
+      A secret in a Docker layer is permanent. docker history exposes
+      every layer to anyone with pull access. Deleting the image from
+      the registry does not delete cached copies. The only remediation
+      is to rotate the secret and rebuild from a clean state.
+      .dockerignore is not optional on a production system.
+      The pressure to push quickly is always real. The cost of pushing
+      the wrong thing is always higher than five more minutes to check.
+    performance_delta: -15
+    next_module: docker-compose

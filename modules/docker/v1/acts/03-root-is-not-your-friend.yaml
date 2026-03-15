@@ -1,0 +1,105 @@
+id: act-3
+title: "Root is Not Your Friend"
+act_number: 3
+
+narrative: >
+  Tuesday afternoon. The base image is fixed. The layer order is
+  corrected. Alex reviews the updated Dockerfile and then:
+  "Good work on the base image. One more thing. Run this:"
+  docker run --rm finstack-dashboard:v0.3 whoami
+  The terminal prints: root
+  Alex: "You're running a payment service as root inside a container.
+  On a payment platform. If this container is ever compromised,
+  the attacker has root. Fix it."
+  Jordan: "Wait — I thought Docker containers were already isolated?"
+  Alex: "Isolation and privilege are different things. Watch how this gets fixed."
+
+tasks:
+  - id: task-3-1
+    title: "Confirm the problem — check the running user"
+    xp: 20
+    checks:
+      - type: exit_code
+        command: "docker run --rm finstack-dashboard:v0.3 whoami"
+        expected_exit: 0
+        failure_message: "Could not check user in container — is finstack-dashboard:v0.3 built?"
+    hints:
+      - "docker run --rm runs a container and removes it immediately when the command completes."
+      - "If whoami returns root — that's your problem confirmed."
+      - "docker run --rm finstack-dashboard:v0.3 whoami && docker run --rm finstack-dashboard:v0.3 ls -la /app"
+
+  - id: task-3-2
+    title: "Add a non-root user and fix file ownership"
+    xp: 80
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.4"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.4 not built"
+      - type: regex_output
+        command: "docker run --rm finstack-dashboard:v0.4 whoami"
+        pattern: "^(?!root).*$"
+        failure_message: "Container still running as root — add USER directive to Dockerfile"
+      - type: regex_output
+        command: "cat ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "^USER "
+        failure_message: "Dockerfile missing USER directive"
+    hints:
+      - "addgroup -S and adduser -S create system-level accounts (no home directory, no password)."
+      - "chown -R changes ownership recursively. Without chown, the new user can't read the app files."
+      - "Add: RUN addgroup -S appgroup && adduser -S appuser -G appgroup && chown -R appuser:appgroup /app && USER appuser — then rebuild as v0.4"
+
+  - id: task-3-3
+    title: "Commit progress — version 0.4"
+    xp: 30
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch --show-current"
+        pattern: "feat/containerise-dashboard"
+        failure_message: "Not on feat/containerise-dashboard branch"
+      - type: file_match
+        path: "~/prodops-chronicles/docker/payment-dashboard/Dockerfile"
+        contains: "USER"
+        failure_message: "Dockerfile not committed to prodops-chronicles repo"
+    hints:
+      - "git checkout -b feat/containerise-dashboard && mkdir -p docker/payment-dashboard && cp ~/finstack/payment-dashboard/Dockerfile docker/payment-dashboard/Dockerfile"
+      - "git add docker/ && git commit -m \"feat: containerise payment dashboard — alpine base, correct layer order, non-root user\""
+
+decision:
+  prompt: >
+    You need to add a non-root user to the Dockerfile. How do you handle it?
+  options:
+    - id: option-d
+      label: "Create a dedicated appuser with correct ownership"
+      narrative: >
+        Alex: "Correct. A named user makes the container's identity
+        clear in logs and in ps output. On a shared host you can
+        trace every process back to the service that owns it."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-e
+      label: "Use the built-in node user from the alpine image"
+      narrative: >
+        Alex: "Valid. Know why it works — the node user exists in
+        this base image specifically. If you switch base images you
+        need to check this again. Portable? Less so. Correct for now? Yes."
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-f
+      label: "Add USER nobody"
+      narrative: >
+        The build succeeds. The container starts. Then crashes.
+        nobody has no permissions on /app. The app can't read its
+        own files. Technical debt +15.
+        Alex: "USER nobody is the wrong answer. nobody has no ownership
+        of your app directory."
+      tracker_effects:
+        morale_delta: -5
+        debt_delta: 15
+        severity_change: ""

@@ -1,0 +1,90 @@
+endings:
+  - id: ending-resolved
+    title: "Incident Resolved"
+    conditions:
+      - field: incident_severity
+        op: "="
+        value: "P4"
+      - field: morale
+        op: ">="
+        value: "70"
+      - field: technical_debt
+        op: "<"
+        value: "40"
+    narrative: >
+      It's 2:47 PM. Disk is at 58%. Logrotate is configured. Permissions
+      are correct. Your incident note is three paragraphs of clear,
+      factual documentation. Priya forwards it to the compliance team
+      before the call even starts. The call lasts eleven minutes.
+
+      Alex sends you a Slack message at 4:30 PM:
+      "Good work today. Jamie never fixed anything properly.
+      You did. That matters."
+
+      You close your terminal. The mystery server isn't a mystery anymore.
+      It's just a server. And you know how to handle servers now.
+    post_mortem: >
+      The root cause was a cron job with no output management writing to
+      a log file with no rotation policy. The fix was two-part: recover
+      disk space immediately (compress old logs), and prevent recurrence
+      (logrotate config). The lesson: always fix the system, not just
+      the symptom. A disk alert that comes back next week is not a
+      resolved incident — it's a deferred one.
+    performance_delta: 20
+    next_module: git
+
+  - id: ending-partial
+    title: "Closed, For Now"
+    conditions:
+      - field: morale
+        op: ">="
+        value: "40"
+      - field: technical_debt
+        op: "<"
+        value: "70"
+    narrative: >
+      The compliance call goes fine. Disk is clear. Priya is satisfied.
+      But the incident note was thin, the logrotate config isn't in place,
+      and somewhere in /tmp there are 12GB of logs that belong in /var/log.
+
+      Alex doesn't say anything. That's its own kind of message.
+
+      You fixed today's problem. The same problem will come back in
+      two weeks. When it does, you'll have more context — and hopefully
+      make a different call.
+    post_mortem: >
+      The incident was resolved but not fixed. Moving logs to /tmp clears
+      disk but creates a new problem — /tmp fills up and nobody knows why.
+      Documentation was incomplete, making it harder for the team to learn
+      from the incident. Partial fixes create technical debt that compounds.
+      The right move was logrotate — always fix the system, not just the symptom.
+    performance_delta: 5
+    next_module: git
+
+  - id: ending-failure
+    title: "Escalated"
+    conditions:
+      - field: morale
+        op: "<"
+        value: "40"
+    narrative: >
+      It's 3:15 PM. The compliance call started without a resolution.
+      Disk hit 100% at 2:58 PM. The logging pipeline failed silently.
+      Priya had to tell the compliance team that audit logs have a gap.
+
+      Alex messages you: "What happened?"
+
+      You don't have a clean answer. You were moving fast but not
+      moving right. The server is still standing. You're still employed.
+      But this one will follow you for a while.
+
+      Replay the Chronicle. You know more now than you did this morning.
+      Use it.
+    post_mortem: >
+      Speed without method is just chaos. The incident escalated because
+      the investigation skipped steps, the fixes addressed symptoms not
+      causes, and the documentation wasn't there when it was needed.
+      Every decision that saved five minutes today cost thirty minutes
+      tomorrow. In ops, slow is smooth and smooth is fast.
+    performance_delta: -10
+    next_module: null

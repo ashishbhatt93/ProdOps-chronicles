@@ -1,0 +1,128 @@
+id: act-1
+title: "The Handoff"
+act_number: 1
+
+narrative: >
+  07:43. Slack notification.
+
+  Alex: "Jamie left this. It doesn't work. Fix it."
+  Alex: "stack/docker-compose.yml"
+  Alex: "We need it running by EOD. CI/CD module depends on it."
+
+  You open the file.
+
+  # Composify — stack/docker-compose.yml
+  # Last modified: Jamie S.
+
+  You've containerised one service. Now you're looking at three.
+  Same alphabet. Different problem.
+
+tasks:
+  - id: task-1-1
+    title: "Read the file"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "cat stack/docker-compose.yml"
+        expected_exit: 0
+        failure_message: "stack/docker-compose.yml not found — check you're in the right directory"
+    hints:
+      - "Look at how credentials are defined in the gitea service."
+      - "One problem is visible immediately before you even run it."
+
+  - id: task-1-2
+    title: "Move credentials to .env"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep -c 'GITEA_DB_PASSWORD=' stack/.env 2>/dev/null || echo 0"
+        pattern: "^[1-9]"
+        failure_message: "GITEA_DB_PASSWORD not found in stack/.env — create the file and add the variable"
+      - type: regex_output
+        command: "grep 'PASSWD' stack/docker-compose.yml"
+        pattern: "\\$\\{GITEA_DB_PASSWORD\\}"
+        failure_message: "Hardcoded password still in docker-compose.yml — replace with ${GITEA_DB_PASSWORD}"
+    hints:
+      - "Create stack/.env with GITEA_DB_PASSWORD=<your-password>"
+      - "Replace the hardcoded value in docker-compose.yml with ${GITEA_DB_PASSWORD}"
+      - "Add stack/.env to .gitignore — credentials must never be committed"
+
+  - id: task-1-3
+    title: "Run it"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "docker compose -f stack/docker-compose.yml up -d 2>&1; true"
+        expected_exit: 0
+        failure_message: "docker compose up failed — read the output carefully for the next error to fix"
+    hints:
+      - "Each line is prefixed with the service name. A service that fails will log an error and exit."
+      - "Run with --no-color if output is hard to read: docker compose -f stack/docker-compose.yml up --no-color"
+      - "Don't stop at the first error. Let it run until it fails or stabilises, then read back through."
+
+  - id: task-1-4
+    title: "Fix the image version"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "grep 'gitea/gitea' stack/docker-compose.yml"
+        pattern: "gitea/gitea:1\\.21"
+        failure_message: "Gitea image must be pinned to gitea/gitea:1.21 — never use :latest"
+    hints:
+      - "latest pulled a version with a breaking config change. The spec says gitea: '1.21'."
+      - "Change gitea/gitea:latest to gitea/gitea:1.21 in docker-compose.yml"
+
+  - id: task-1-5
+    title: "Fix the service order"
+    xp: 150
+    checks:
+      - type: regex_output
+        command: "grep -A3 'woodpecker-server' stack/docker-compose.yml | grep 'depends_on'"
+        pattern: "depends_on"
+        failure_message: "woodpecker-server missing depends_on gitea"
+      - type: exit_code
+        command: "docker compose -f stack/docker-compose.yml up -d && docker compose -f stack/docker-compose.yml ps | grep -q 'running\\|Up'"
+        expected_exit: 0
+        failure_message: "Services not running after adding depends_on"
+    hints:
+      - "Docker Compose started both simultaneously. Woodpecker tried to reach Gitea before it was ready."
+      - "Add to woodpecker-server: depends_on: gitea: condition: service_started"
+      - "Run again after the fix — both services should start in order."
+
+decision:
+  prompt: >
+    You've fixed Jamie's file. Three errors, all different.
+    What's the most important habit this act reinforced?
+  options:
+    - id: option-a
+      label: "Always read error output carefully before guessing at fixes"
+      narrative: >
+        Alex nods when you mention this in standup. "Most engineers
+        read the first line and start changing things. You read all
+        of it. The error message told you exactly what was wrong each time."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-b
+      label: "Credentials belong in .env — always, no exceptions"
+      narrative: >
+        "Also correct," Alex says. "And notice: Jamie's original file
+        had hardcoded credentials. You fixed it. That's the thing about
+        inherited work — you own it the moment you touch it."
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-c
+      label: "Pin image versions — never use :latest in production"
+      narrative: >
+        "Yes," Alex says. "latest is a lie. It changes without warning.
+        Every base_configs.yaml value exists because someone learned this
+        lesson on a production system. Now you know why."
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""

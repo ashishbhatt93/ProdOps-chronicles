@@ -1,0 +1,158 @@
+id: act-4
+title: "Pack Light, Ship Fast"
+act_number: 4
+
+narrative: >
+  Wednesday morning. Priya messages at 9:15 AM:
+  "Status on the dashboard containerisation? We want to push
+  to the staging registry today for a test deploy."
+  Alex adds: "Before you push anything — run this:"
+  docker run --rm finstack-dashboard:v0.4 ls -la /app
+  You run it. There it is. node_modules directory. .git directory.
+  A .env.local file from Jordan's development setup.
+  All of it, sitting inside the container. All of it going to the registry.
+  Alex: "Jordan — did you write a .dockerignore?"
+  Jordan: "...what's a .dockerignore?"
+
+tasks:
+  - id: task-4-1
+    title: "Audit the build context"
+    xp: 30
+    checks:
+      - type: exit_code
+        command: "docker run --rm finstack-dashboard:v0.4 ls /app"
+        expected_exit: 0
+        failure_message: "Could not inspect container filesystem"
+    hints:
+      - "COPY . . copies everything in the build context directory. .dockerignore excludes files."
+      - "node_modules should never be in a Docker image — you install them inside via npm ci."
+      - "docker run --rm finstack-dashboard:v0.4 ls -la /app — look for node_modules, .git, .env*"
+
+  - id: task-4-2
+    title: "Write .dockerignore"
+    xp: 60
+    checks:
+      - type: file_match
+        path: "~/finstack/payment-dashboard/.dockerignore"
+        contains: "node_modules"
+        failure_message: ".dockerignore not found or missing node_modules entry"
+      - type: file_match
+        path: "~/finstack/payment-dashboard/.dockerignore"
+        contains: ".env"
+        failure_message: ".dockerignore must exclude .env files"
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.5"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.5 not built — rebuild with .dockerignore in place"
+      - type: regex_output
+        command: "docker run --rm finstack-dashboard:v0.5 ls /app"
+        pattern: "^(?!.*node_modules).*$"
+        failure_message: "node_modules still present inside container — check .dockerignore"
+    hints:
+      - ".dockerignore must be in the same directory as the Dockerfile. Same syntax as .gitignore."
+      - "A minimal Node .dockerignore: node_modules, .git, .env*, *.log, dist, build"
+      - "After adding .dockerignore, rebuild: docker build -t finstack-dashboard:v0.5 . && docker run --rm finstack-dashboard:v0.5 ls /app"
+
+  - id: task-4-3
+    title: "Create Docker Hub account and access token"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "docker info"
+        expected_exit: 0
+        failure_message: "Docker not running"
+      - type: regex_output
+        command: "cat ~/.docker/config.json"
+        pattern: "docker\\.io|index\\.docker\\.io"
+        failure_message: "Not authenticated to Docker Hub — run: docker login --username YOUR_USERNAME"
+    hints:
+      - "Go to hub.docker.com → Account Settings → Security → Access Tokens → New Access Token"
+      - "Use the access token (not your password) when docker login prompts for password."
+      - "docker login --username YOUR_DOCKER_HUB_USERNAME (paste access token when prompted)"
+
+  - id: task-4-4
+    title: "Tag and push to both registries"
+    xp: 70
+    checks:
+      - type: regex_output
+        command: "curl -s http://localhost:5000/v2/finstack-dashboard/tags/list"
+        pattern: "1\\.0\\.0"
+        failure_message: "Image not found in local registry at version 1.0.0"
+      - type: exit_code
+        command: "curl -s http://localhost:5000/v2/finstack-dashboard/tags/list | grep -q '1.0.0'"
+        expected_exit: 0
+        failure_message: "Local registry does not contain version 1.0.0"
+    hints:
+      - "docker tag SOURCE TARGET creates a new tag pointing to the same layers — no data duplicated."
+      - "Tag with registry prefix: localhost:5000/finstack-dashboard:1.0.0 for local, YOUR_USERNAME/finstack-dashboard:1.0.0 for Docker Hub."
+      - "docker tag finstack-dashboard:v0.5 localhost:5000/finstack-dashboard:1.0.0 && docker push localhost:5000/finstack-dashboard:1.0.0"
+
+  - id: task-4-5
+    title: "Extend deploy.sh with docker build and push"
+    xp: 90
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "build_and_push()"
+        failure_message: "build_and_push function not found in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "docker build"
+        failure_message: "deploy.sh must call docker build"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "docker push"
+        failure_message: "deploy.sh must call docker push"
+    hints:
+      - "Add build_and_push() before deploy_config() in deploy.sh. Define before calling."
+      - "DOCKER_REGISTRY=\"${DOCKER_REGISTRY:-localhost:5000}\" uses env var if set, otherwise defaults to local."
+      - "build_and_push() { local registry=$1; local name=$2; local tag=$3; local context=$4; docker build -t \"${registry}/${name}:${tag}\" \"$context\" && docker push \"${registry}/${name}:${tag}\"; }"
+
+decision:
+  prompt: >
+    The .dockerignore is in place. The image is clean. Priya wants
+    it pushed to staging today. How do you handle the push workflow?
+  options:
+    - id: option-g
+      label: "Fix .dockerignore, push to both registries, extend deploy.sh"
+      narrative: >
+        Alex reviews the extended deploy.sh: "This is what I was
+        hoping you'd do. The script from last week now builds,
+        tags, and pushes before it deploys. The whole pipeline
+        is one command. That's composable automation."
+        Priya: "Staging deploy went cleanly. Green across the board."
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: -10
+        severity_change: ""
+
+    - id: option-h
+      label: "Fix .dockerignore, push to both registries manually"
+      narrative: >
+        Image ships. Staging is green. But the manual push process
+        means every future release is two separate steps. Alex notices
+        the ticket was opened and left. Technical debt +15.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 15
+        severity_change: ""
+
+    - id: option-i
+      label: "Push now — fix the .dockerignore after staging validates"
+      narrative: >
+        The image pushes. Staging loads. Then Alex runs docker history
+        on the pushed image and finds .env.local baked into a layer.
+        It contains the Stripe test API key Jordan used in development.
+        Alex: "There is a secret in this image's layer history.
+        That image is now on Docker Hub. Understand what that means."
+        Technical debt +25. The image must be deleted and rebuilt. The key rotated.
+      tracker_effects:
+        morale_delta: -10
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "docker-secret-in-layer"
+        severity: moderate
+        note: "Development credential (.env.local containing Stripe test key) baked into Docker image layer history and pushed to public registry. Image pulled, key rotated, staging deploy reverted."
+        can_be_offset_by:
+          - cicd

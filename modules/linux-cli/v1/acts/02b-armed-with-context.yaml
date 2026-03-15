@@ -1,0 +1,27 @@
+id: act-2-path-b
+title: "Armed with Context"
+act_number: 2
+
+narrative: >
+  Alex's reply was brief but useful. Payment audit log server.
+  Log aggregator and a cron job. You know what you're looking for
+  before you even SSH in. When you connect, you're not exploring —
+  you're investigating a specific problem with a specific scope.
+
+tasks:
+  - id: task-2b-1
+    title: "Verify what Alex told you"
+    xp: 40
+    checks:
+      - type: exit_code
+        command: "sudo systemctl list-units --type=service 2>/dev/null | head -1"
+        expected_exit: 0
+        failure_message: "systemctl failed — try: service --status-all"
+      - type: exit_code
+        command: "crontab -l 2>/dev/null; sudo crontab -l 2>/dev/null; true"
+        expected_exit: 0
+        failure_message: "crontab check failed"
+    hints:
+      - "You're verifying a specific claim, not exploring generally."
+      - "systemctl status filtered by 'log' will surface the aggregator. crontab -l shows scheduled jobs."
+      - "sudo systemctl list-units --type=service | grep -i log && sudo crontab -l && ps aux | grep cron"

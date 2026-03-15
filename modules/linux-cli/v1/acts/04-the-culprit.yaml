@@ -1,0 +1,96 @@
+id: act-3-converge
+title: "The Culprit"
+act_number: 4
+
+narrative: >
+  /var/log is your target. Inside, somewhere, a file or set of files
+  has grown out of control. Jamie's cron job is still running —
+  you can see it in the process list. Whatever it's doing,
+  it's been logging everything and rotating nothing.
+  Priya just pinged you: "Any update? Compliance check is at 3pm."
+  It's 11:20 AM.
+
+tasks:
+  - id: task-3-1
+    title: "Investigate the log files"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "sudo find /var/log -type f 2>/dev/null | head -1"
+        expected_exit: 0
+        failure_message: "find on /var/log failed — try with sudo"
+      - type: exit_code
+        command: "sudo tail -n 5 /var/log/syslog 2>/dev/null || sudo tail -n 5 /var/log/messages 2>/dev/null"
+        expected_exit: 0
+        failure_message: "Could not tail system log — check permissions"
+    hints:
+      - "find locates files, ls -lh shows sizes, sort orders them. Pipe them together."
+      - "sudo find /var/log -type f | xargs ls -lh 2>/dev/null | sort -k5 -rh | head -10"
+      - "Step 1: sudo find /var/log -type f -name '*.log' -size +100M — Step 2: sudo tail -n 20 <that-file>"
+
+  - id: task-3-2
+    title: "Check the cron job"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "crontab -l 2>/dev/null; sudo crontab -l 2>/dev/null; true"
+        expected_exit: 0
+        failure_message: "crontab check failed"
+      - type: exit_code
+        command: "ls /etc/cron.d/"
+        expected_exit: 0
+        failure_message: "/etc/cron.d/ not accessible"
+    hints:
+      - "Cron jobs can live in multiple places. Check all four locations."
+      - "The job is likely in /etc/cron.d/ or sudo crontab -l. Look for something referencing /var/log."
+      - "crontab -l && sudo crontab -l && ls /etc/cron.d/ && ls /etc/cron.daily/"
+
+decision:
+  prompt: >
+    You've found oversized log files written by Jamie's cron job.
+    The logs are legitimate audit data — you can't just delete them.
+    How do you handle this?
+  options:
+    - id: option-f
+      label: "Compress old logs and set up log rotation"
+      narrative: >
+        This is the right call. You're not just fixing the symptom —
+        you're fixing the system. Alex messages: "Good thinking on
+        logrotate. That's exactly what Jamie should have set up."
+        Morale up. Debt down.
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: -10
+        severity_change: "P3"
+
+    - id: option-g
+      label: "Archive logs to a separate location"
+      narrative: >
+        Disk space freed. Incident technically resolved for now.
+        But you've moved the problem, not fixed it. /tmp will fill
+        up within a week. Technical debt accumulates.
+        Priya is happy with the quick fix. Alex is not.
+      tracker_effects:
+        morale_delta: -5
+        debt_delta: 25
+        severity_change: ""
+      yearly_review_flag:
+        id: "linux-cli-temp-fix"
+        severity: minor
+        note: "Resolved disk issue by moving logs to /tmp rather than implementing log rotation."
+        can_be_offset_by:
+          - bash-scripting
+          - cicd
+
+    - id: option-h
+      label: "Investigate the cron job before touching anything"
+      narrative: >
+        You check crontab -l and read the script. Turns out the cron
+        job has a bug — it's logging every transaction twice due to
+        a misconfigured flag. You fix the flag, set up log rotation,
+        and file a note for the dev team. Alex responds to your
+        incident update with: "This is good work."
+      tracker_effects:
+        morale_delta: 20
+        debt_delta: -5
+        severity_change: "P4"

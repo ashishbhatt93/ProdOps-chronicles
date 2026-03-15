@@ -1,0 +1,107 @@
+id: act-1
+title: "The Grind"
+act_number: 1
+
+narrative: >
+  You open Jamie's deploy doc. Step 1: copy payment.cfg to /tmp.
+  Step 2: SSH to server. Step 3: sudo cp /tmp/payment.cfg /etc/payment/.
+  Step 4: restart service. Steps 5-12: repeat with variations you
+  have to mentally track. Step 8 is '???'.
+  You close the doc. You open a new file: deploy.sh.
+  A bash script starts with three things: who runs it, what it is,
+  and what it needs to know before it does anything.
+  Start there.
+
+tasks:
+  - id: task-1-1
+    title: "Create the scripts directory and deploy.sh"
+    xp: 20
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "#!/bin/bash"
+        failure_message: "deploy.sh not found or missing shebang line"
+      - type: regex_output
+        command: "ls -la ~/prodops-chronicles/scripts/deploy.sh"
+        pattern: "^-rwx"
+        failure_message: "deploy.sh is not executable — run: chmod +x scripts/deploy.sh"
+    hints:
+      - "The shebang #!/bin/bash must be the very first line. No blank lines before it."
+      - "chmod +x makes the file executable. Without it ./deploy.sh won't work."
+      - "mkdir -p ~/prodops-chronicles/scripts && echo '#!/bin/bash' > ~/prodops-chronicles/scripts/deploy.sh && chmod +x ~/prodops-chronicles/scripts/deploy.sh"
+
+  - id: task-1-2
+    title: "Add variables and argument handling"
+    xp: 60
+    checks:
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "ENVIRONMENT="
+        failure_message: "ENVIRONMENT variable not found in deploy.sh"
+      - type: file_match
+        path: "~/prodops-chronicles/scripts/deploy.sh"
+        contains: "exit 1"
+        failure_message: "Argument validation (exit 1) not found in deploy.sh"
+      - type: regex_output
+        command: "~/prodops-chronicles/scripts/deploy.sh 2>&1; echo $?"
+        pattern: "1$"
+        failure_message: "Script should exit with code 1 when no arguments given"
+    hints:
+      - "$1 is the first argument. ${2:-\"default\"} uses $2 if set, otherwise the default. $# is the argument count."
+      - "[[ $# -lt 1 ]] means 'if argument count is less than 1'. -lt = less than."
+      - "Add: ENVIRONMENT=${1} and if [[ $# -lt 1 ]]; then echo \"Usage: $0 <environment>\"; exit 1; fi"
+
+  - id: task-1-3
+    title: "Commit the first version"
+    xp: 20
+    checks:
+      - type: regex_output
+        command: "git -C ~/prodops-chronicles branch --show-current"
+        pattern: "feat/deploy-script"
+        failure_message: "Not on feat/deploy-script branch — run: git checkout -b feat/deploy-script"
+      - type: exit_code
+        command: "git -C ~/prodops-chronicles log --oneline -- scripts/deploy.sh"
+        expected_exit: 0
+        failure_message: "deploy.sh not yet committed — run: git add scripts/deploy.sh && git commit"
+    hints:
+      - "New feature = new branch. Even for a script."
+      - "git checkout -b feat/deploy-script && git add scripts/deploy.sh && git commit -m \"feat: add deploy script v1\""
+
+decision:
+  prompt: >
+    Alex reviews version 1 and asks:
+    "What happens if someone runs this with no arguments?"
+  options:
+    - id: option-a
+      label: "Add argument validation — fail fast with a clear error"
+      narrative: >
+        Alex reads it: "Good. It tells you what it needs instead
+        of silently doing the wrong thing. That's the difference
+        between a script and a tool." Morale +10.
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-b
+      label: "Add default values — assume staging if no argument"
+      narrative: >
+        Alex: "Why staging? What if I'm on the prod server when
+        I run this? Silent defaults are silent surprises. Make it
+        explicit." Technical debt +10.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 10
+        severity_change: ""
+
+    - id: option-c
+      label: "Leave it — engineers should know how to use their tools"
+      narrative: >
+        Alex: "Jamie said the same thing. That's why step 8 of
+        his deploy doc is '???'. Engineers forget. Scripts should
+        be idiot-proof — including future you at 3 AM."
+        Technical debt +20.
+      tracker_effects:
+        morale_delta: -10
+        debt_delta: 20
+        severity_change: ""

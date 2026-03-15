@@ -1,0 +1,22 @@
+id: act-2-path-overwrite-key
+title: "Point of No Return"
+act_number: 3
+
+narrative: >
+  You generate a new key and save it to id_rsa — overwriting the old one.
+  The old key is gone. Whatever it was authenticating no longer works.
+  You don't know that yet. You'll find out this afternoon.
+
+tasks:
+  - id: task-2c-1
+    title: "Generate new key (overwriting existing)"
+    xp: 20
+    checks:
+      - type: file_match
+        path: "~/.ssh/id_rsa.pub"
+        contains: "ssh-"
+        failure_message: "New key not found at ~/.ssh/id_rsa.pub"
+    hints:
+      - "The key-history.txt note won't undo the damage but will help you remember what you did when debugging later."
+      - "ssh-keygen will ask 'Overwrite (y/n)?' — you must type y to proceed. Last chance to change your mind."
+      - "ssh-keygen -t ed25519 -C \"your@email.com\" -f ~/.ssh/id_rsa (type y when prompted)"

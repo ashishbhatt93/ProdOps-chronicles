@@ -1,0 +1,121 @@
+id: act-3
+title: "Systematic"
+act_number: 3
+
+narrative: >
+  Build step failed.
+
+    build | sh: scripts/build.sh: not found
+
+  You run it locally:
+
+    $ bash scripts/build.sh
+    Building payment-dashboard...
+    Done.
+
+  It works. Of course it does.
+  You're running it from the project root.
+  The pipeline container starts at /.
+  scripts/build.sh is a relative path.
+  Relative to what, exactly?
+
+  Alex was right. Fix the path. Then it'll find something else.
+
+tasks:
+  - id: task-3-1
+    title: "Fix the working directory"
+    xp: 150
+    checks:
+      - type: file_match
+        path: "payment-dashboard/.woodpecker.yml"
+        contains: "working_dir:"
+        failure_message: ".woodpecker.yml missing working_dir — add it to build and push steps"
+    hints:
+      - "Woodpecker clones your repo into a predictable path based on your Gitea hostname and repo name"
+      - "Add to the build step: working_dir: /woodpecker/src/localhost/payment-dashboard"
+      - "Apply the same working_dir to the push step"
+
+  - id: task-3-2
+    title: "Push and read the next failure"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "git -C payment-dashboard log --oneline -- .woodpecker.yml | wc -l"
+        expected_exit: 0
+        failure_message: "Could not read git log for .woodpecker.yml"
+    hints:
+      - "git add .woodpecker.yml && git commit -m 'ci: fix working directory in build and push steps' && git push gitea main"
+      - "Watch the pipeline — the build step will progress further, then fail again"
+      - "Look for lines starting with 'ERROR' in the build step log. The first error is usually the real one."
+
+  - id: task-3-3
+    title: "Fix the Dockerfile"
+    xp: 150
+    checks:
+      - type: file_match
+        path: "payment-dashboard/Dockerfile"
+        contains: "jq"
+        failure_message: "jq not added to Dockerfile — build script uses jq but it's not in the image"
+    hints:
+      - "The build script uses jq but the docker:24 alpine image doesn't have it"
+      - "For alpine: RUN apk add --no-cache jq — add this to your Dockerfile before the build steps"
+      - "This is a Module 4 callback — the Dockerfile you wrote then is the build environment the pipeline runs in now"
+
+  - id: task-3-4
+    title: "Push and watch it pass"
+    xp: 100
+    checks:
+      - type: regex_output
+        command: "curl -s http://localhost:5000/v2/payment-dashboard/tags/list 2>/dev/null"
+        pattern: "\"tags\":"
+        failure_message: "No tags found in local registry — pipeline hasn't pushed an image yet"
+    hints:
+      - "git add Dockerfile && git commit -m 'fix: add jq to build image dependencies' && git push gitea main"
+      - "Watch: lint passes → build passes → push passes"
+      - "curl -s http://localhost:5000/v2/payment-dashboard/tags/list — you should see the commit SHA as a tag"
+
+decision:
+  prompt: >
+    Three failures. Three different causes.
+    Missing dependency. Wrong working directory. Missing build tool.
+    What connects all three?
+  options:
+    - id: option-g
+      label: "All three were assumptions — things that existed on my machine and nowhere else"
+      narrative: >
+        Alex: "Exactly. The pipeline exposed every assumption you'd been
+        making silently. Global eslint. Project root as working directory.
+        jq installed somewhere along the way. None of those are wrong
+        assumptions for local development. All of them are wrong
+        assumptions for a CI environment. A passing pipeline makes
+        no assumptions."
+      tracker_effects:
+        morale_delta: 15
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-h
+      label: "All three were fixable by reading the error message carefully"
+      narrative: >
+        Alex: "Also true. The error message told you exactly what was
+        missing each time. ESLint couldn't find a config file.
+        scripts/build.sh: not found. jq: not found.
+        Clear, specific, actionable. The pipeline doesn't guess.
+        Neither should you."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-i
+      label: "All three were in different layers — lint config, pipeline config, Dockerfile"
+      narrative: >
+        Alex: "Correct observation. The first failure was in the project's
+        declared dependencies. The second was in the pipeline configuration.
+        The third was in the Dockerfile. Each layer is independent.
+        A fix in one layer doesn't fix another. That's why you fix
+        one thing at a time."
+      tracker_effects:
+        morale_delta: 10
+        debt_delta: 0
+        severity_change: ""

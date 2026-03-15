@@ -1,0 +1,28 @@
+id: act-2-path-a
+title: "In the Deep End"
+act_number: 2
+
+narrative: >
+  You're in. No preamble, no context gathering — just you and an
+  unfamiliar filesystem. The terminal prompt stares back at you.
+  You don't know what this server does, what's supposed to be running,
+  or what normal looks like. You're navigating blind.
+  That's fine. You'll figure it out. Probably.
+
+tasks:
+  - id: task-2a-1
+    title: "Figure out what this server is running"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "ps aux | head -5"
+        expected_exit: 0
+        failure_message: "ps aux failed"
+      - type: exit_code
+        command: "sudo ss -tlnp"
+        expected_exit: 0
+        failure_message: "ss -tlnp failed — try: sudo netstat -tlnp"
+    hints:
+      - "ps shows processes, systemctl shows services, ss shows network."
+      - "ps aux | grep -v grep shows all processes. ss -tlnp shows TCP listening ports."
+      - "Run all three: ps aux | head -20 && sudo systemctl list-units --type=service --state=running && sudo ss -tlnp"

@@ -1,0 +1,35 @@
+id: linux-cli
+name: "Linux CLI"
+version: "1.0.0"
+order_index: 1
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  You've been handed SSH access to an unfamiliar server with no documentation
+  and no handover notes. Navigate the filesystem, understand what's running,
+  fix broken permissions, and figure out why the disk is nearly full —
+  all before the system goes down. Learn the Linux CLI the way engineers
+  actually learn it: under pressure, in the dark, figuring it out.
+
+acts:
+  - id: act-1
+    file: acts/01-first-contact.yaml
+  - id: act-2-path-a
+    file: acts/02a-in-the-deep-end.yaml
+  - id: act-2-path-b
+    file: acts/02b-armed-with-context.yaml
+  - id: act-2-path-c
+    file: acts/02c-by-the-book.yaml
+  - id: act-2-converge
+    file: acts/03-dead-reckoning.yaml
+  - id: act-3-converge
+    file: acts/04-the-culprit.yaml
+  - id: act-4-converge
+    file: acts/05-resolution.yaml
+  - id: act-4-path-proper
+    file: acts/06-root-cause-fixed.yaml
+  - id: act-4-path-shortcut
+    file: acts/07-bought-time.yaml
+
+endings_file: endings/endings.yaml

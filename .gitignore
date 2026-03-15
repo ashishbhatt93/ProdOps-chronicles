@@ -1,0 +1,78 @@
+# =============================================================================
+# ProdOps Chronicles — .gitignore
+# =============================================================================
+
+# ── Generated config — machine-specific, never commit ─────────────────────────
+base_configs.yaml
+values.yaml
+.env
+stack/.env
+
+# ── Go build artifacts ────────────────────────────────────────────────────────
+# Compiled binaries
+/prodops
+/backend
+/pod
+/bin/
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Vendor directory (we use go modules, not vendor)
+vendor/
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Local override files — never commit these
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ── Secrets and credentials ───────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+*.pub
+# Allow example/documentation keys explicitly if needed:
+# !docs/example.pub
+
+# ── Runtime data — lives in /opt/prodops, never in the repo ──────────────────
+pgdata/
+modules/state/
+sync/
+logs/
+*.log
+*.log.*
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── IDE and editor files ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ── Temporary files ───────────────────────────────────────────────────────────
+*.tmp
+*.temp
+tmp/
+temp/

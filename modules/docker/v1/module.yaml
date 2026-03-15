@@ -1,0 +1,28 @@
+id: docker
+name: "Docker"
+version: "1.0.0"
+order_index: 4
+mode: beginner
+runtime: compose
+score_threshold: 80
+description: >
+  Monday of week two. The payment dashboard is getting a proper release
+  process — no more copying files to servers. Jordan has already written
+  a Dockerfile. It builds. It runs. It's wrong in four specific ways you'll
+  discover across the module. Fix each one, understand why it matters, spin
+  up a local registry, push to Docker Hub, and extend your deploy script to
+  automate the whole thing.
+
+acts:
+  - id: act-1
+    file: acts/01-get-in-the-door.yaml
+  - id: act-2-path-diagnosed
+    file: acts/02a-fix-the-foundation-diagnosed.yaml
+  - id: act-2-path-guided
+    file: acts/02b-fix-the-foundation-guided.yaml
+  - id: act-3
+    file: acts/03-root-is-not-your-friend.yaml
+  - id: act-4
+    file: acts/04-pack-light-ship-fast.yaml
+
+endings_file: endings/endings.yaml

@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:${POSTGRES_VERSION:-15.4}
+    container_name: prodops-db
+    restart: unless-stopped
+    user: "999:999"
+    environment:
+      POSTGRES_USER:     prodops_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB:       prodops
+    volumes:
+      - /opt/prodops/pgdata:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    networks:
+      - prodops-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prodops_app -d prodops"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  backend:
+    image: prodops/backend:${BACKEND_VERSION:-latest}
+    container_name: prodops-backend
+    restart: unless-stopped
+    ports:
+      - "7741:7741"
+    environment:
+      DATABASE_URL:  "postgres://prodops_app:${DB_PASSWORD}@db:5432/prodops?sslmode=disable"
+      BACKEND_TOKEN: ${BACKEND_TOKEN}
+      PORT:          "7741"
+      RUNTIME:       ${RUNTIME:-compose}
+      COMPOSE_FILE:  /opt/prodops/docker-compose.yml
+      PROJECT_DIR:   /opt/prodops
+      IMAGE_PREFIX:  prodops
+      IMAGE_TAG:     ${BACKEND_VERSION:-latest}
+      LEARNER_HOME:  /home/learner
+      CONFIG_PATH:   /opt/prodops/base_configs.yaml
+      SYNC_DIR:      /opt/prodops/sync
+    volumes:
+      - /opt/prodops:/opt/prodops
+      - /home/${USER}/.gitconfig:/root/.gitconfig:ro
+      - /home/${USER}:/home/learner:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - prodops-net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7741/health"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+networks:
+  prodops-net:
+    name: prodops-net
+    driver: bridge
+
+# Module pods are appended below by 'prodops module enable <module-id>'.
+# Each pod block is managed by the backend's runtime adapter.

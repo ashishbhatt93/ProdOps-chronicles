@@ -1,0 +1,205 @@
+# =============================================================================
+# base_configs.example.yaml — ProdOps Chronicles
+# Copy to base_configs.yaml and fill in machine-specific values.
+# base_configs.yaml is in .gitignore — never commit it.
+#
+# This file is the single source of truth for all paths, versions, modules,
+# and runtime behaviour. The backend reads it at startup. No path is
+# hardcoded anywhere in the codebase.
+# =============================================================================
+
+# ── System users ─────────────────────────────────────────────────────────────
+# Created by install.sh. Change only if the defaults conflict with existing
+# UIDs on your system, then re-run: sudo ./scripts/install.sh
+system:
+  postgres_uid: 999
+  postgres_gid: 999
+  prodops_user: prodops
+  prodops_uid:  1000
+  prodops_gid:  1000
+
+# ── Storage paths ─────────────────────────────────────────────────────────────
+# All sub-paths are derived from base_path automatically if left empty.
+# Override individual paths only if you need data on a different volume.
+#
+# Example: pgdata on a dedicated fast disk:
+#   pgdata_path: /mnt/fast-ssd/pgdata
+storage:
+  base_path:    /opt/prodops          # install.sh creates this directory
+  pgdata_path:  ""                    # derived: /opt/prodops/pgdata
+  modules_path: ""                    # derived: /opt/prodops/modules
+  sync_path:    ""                    # derived: /opt/prodops/sync
+  logs_path:    ""                    # derived: /opt/prodops/logs
+  backend_path: ""                    # derived: /opt/prodops/backend
+
+# ── Image versions ─────────────────────────────────────────────────────────────
+# NEVER use 'latest'. Pin every image. Versions must match between Compose
+# and k3s configurations. Update here first, then redeploy.
+versions:
+  postgres:   "15.4"
+  backend:    "1.0.0"
+  gitea:      "1.21"
+  woodpecker: "2.3"
+
+# ── Network ───────────────────────────────────────────────────────────────────
+network:
+  prodops_subnet: 10.42.0.0/16
+  dns_domain:     prodops.local
+
+# ── Runtime ───────────────────────────────────────────────────────────────────
+# compose = v1.0 (Docker Compose, beginner mode)
+# k3s     = v2.0 (k3s cluster, intermediate/advanced mode — not yet implemented)
+runtime: compose
+
+# ── Difficulty ────────────────────────────────────────────────────────────────
+# Controls hint availability, incident pressure, and which modules are visible.
+#
+# d1 — DevOps Engineer          All 3 hint levels. Standard pressure windows.
+# d2 — Senior DevOps Engineer   First 2 hints only. Tighter deadlines.
+# d3 — DevOps Team Lead         First hint only. Architectural decisions surface
+#                                earlier. Stricter yearly review scoring.
+#
+# This can be changed between runs. It does not affect saved progress from
+# completed modules — only future modules and replays.
+difficulty: d1
+
+# ── Modules ───────────────────────────────────────────────────────────────────
+# enabled: true/false   — whether this module exists on your installation.
+#                         false = not written to disk, pod never starts.
+#                         The backend completely ignores disabled modules.
+#
+# min_difficulty         — minimum difficulty level to see this module.
+#                         d1 = visible to everyone (default).
+#                         d2 = only visible to Senior DevOps Engineer and above.
+#                         d3 = only visible to DevOps Team Lead.
+#
+# score_threshold        — override the module YAML's default pass threshold.
+#                         null = use the module's own default (recommended).
+#
+# port                   — host port for modules that expose a UI (Gitea,
+#                         Woodpecker, Grafana). null = internal only.
+#
+# v1.0 beginner modules (Docker Compose runtime):
+modules:
+  linux-cli:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  git:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  bash-scripting:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  docker:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  docker-compose:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  cicd:
+    enabled: true
+    min_difficulty: d1
+    score_threshold: null
+    port: 8100          # Gitea UI at localhost:8100 when enabled
+
+  # ── v2.0 intermediate modules (k3s runtime) — disabled by default ──────────
+  # Set enabled: true and runtime: k3s to activate after completing v1.0.
+
+  terraform:
+    enabled: false
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  go:
+    enabled: false
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  devsecops:
+    enabled: false
+    min_difficulty: d2    # Requires Senior DevOps Engineer or above
+    score_threshold: null
+    port: null
+
+  kubernetes:
+    enabled: false
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  traefik:
+    enabled: false
+    min_difficulty: d1
+    score_threshold: null
+    port: null
+
+  jenkins:
+    enabled: false
+    min_difficulty: d2
+    score_threshold: null
+    port: 8080
+
+  # ── v2.0 advanced modules ──────────────────────────────────────────────────
+
+  ansible:
+    enabled: false
+    min_difficulty: d2
+    score_threshold: null
+    port: null
+
+  aws:
+    enabled: false
+    min_difficulty: d2
+    score_threshold: null
+    port: null
+
+  prometheus:
+    enabled: false
+    min_difficulty: d2
+    score_threshold: null
+    port: 9090
+
+  grafana:
+    enabled: false
+    min_difficulty: d2
+    score_threshold: null
+    port: 3000
+
+  service-mesh:
+    enabled: false
+    min_difficulty: d3    # Requires DevOps Team Lead
+    score_threshold: null
+    port: null
+
+# ── AI learning agent ─────────────────────────────────────────────────────────
+# Default: Ollama (offline, self-hosted, zero cost).
+# Upgrade: set provider to claude/openai/gemini and supply your api_key.
+# api_key is never committed — it lives only in this file (which is gitignored).
+ai:
+  provider: ollama   # ollama | claude | openai | gemini
+  api_key:  ""       # set via: prodops config set ai.api_key=<key>
+
+# ── Telemetry ─────────────────────────────────────────────────────────────────
+# tier1 = private (default) — nothing leaves your machine
+# tier2 = anonymous telemetry — stripped snapshots, no PII
+# tier3 = public repo + anonymous telemetry — community contribution
+telemetry:
+  enabled: false
+  level:   tier1

@@ -1,0 +1,27 @@
+id: act-2-path-new-key
+title: "Clean Slate"
+act_number: 3
+
+narrative: >
+  You're generating a new, dedicated key for GitHub.
+  ed25519 — faster, more secure, and smaller than RSA.
+  One key per service. Clean, traceable, independently revocable.
+  This is how security-conscious engineers manage credentials.
+
+tasks:
+  - id: task-2a-1
+    title: "Generate a new ed25519 SSH key"
+    xp: 50
+    checks:
+      - type: file_match
+        path: "~/.ssh/id_ed25519_github.pub"
+        contains: "ed25519"
+        failure_message: "ed25519 GitHub key not found at ~/.ssh/id_ed25519_github.pub"
+      - type: regex_output
+        command: "ssh-add -l"
+        pattern: "ed25519"
+        failure_message: "ed25519 key not loaded in ssh-agent — run: eval \"$(ssh-agent -s)\" && ssh-add ~/.ssh/id_ed25519_github"
+    hints:
+      - "-f specifies the filename. -C adds a comment (usually your email)."
+      - "eval \"$(ssh-agent -s)\" starts the agent. ssh-add adds your key. The agent holds it in memory."
+      - "ssh-keygen -t ed25519 -C \"your@email.com\" -f ~/.ssh/id_ed25519_github && eval \"$(ssh-agent -s)\" && ssh-add ~/.ssh/id_ed25519_github"

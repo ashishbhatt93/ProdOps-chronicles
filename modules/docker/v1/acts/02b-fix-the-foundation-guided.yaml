@@ -1,0 +1,73 @@
+id: act-2-path-guided
+title: "Fix the Foundation"
+act_number: 2
+
+narrative: >
+  Alex showed you the size. 947MB. Now he's walking you through the
+  Dockerfile line by line in Slack. "Line 1. FROM ubuntu:latest.
+  Why ubuntu? What does your Node app actually need?" You read the
+  line again. Oh.
+
+tasks:
+  - id: task-2b-1
+    title: "Switch to a purpose-built, pinned base image"
+    xp: 50
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.2"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.2 not built"
+      - type: regex_output
+        command: "cat ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "node:18-alpine"
+        failure_message: "Dockerfile must use node:18-alpine as base image"
+    hints:
+      - "node:18-alpine has Node 18 pre-installed. Remove the apt-get lines — they fail on Alpine."
+      - "FROM node:18-alpine is the entire base image change. Remove the two apt-get RUN lines after it."
+      - "docker build -t finstack-dashboard:v0.2 . && docker images | grep finstack-dashboard"
+
+  - id: task-2b-2
+    title: "Fix the layer order for correct cache behaviour"
+    xp: 60
+    checks:
+      - type: exit_code
+        command: "docker image inspect finstack-dashboard:v0.3"
+        expected_exit: 0
+        failure_message: "finstack-dashboard:v0.3 not built"
+      - type: regex_output
+        command: "grep -n 'COPY' ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "package"
+        failure_message: "Dockerfile must copy package*.json before full source"
+      - type: regex_output
+        command: "cat ~/finstack/payment-dashboard/Dockerfile"
+        pattern: "npm ci"
+        failure_message: "Dockerfile must use npm ci"
+    hints:
+      - "The rule: copy files that change rarely before files that change often."
+      - "npm ci is stricter than npm install — reads package-lock.json exactly."
+      - "Order: COPY package*.json ./ → RUN npm ci → COPY . . → RUN npm run build"
+
+decision:
+  prompt: >
+    Alex has pointed out the base image problem. While you're switching
+    it he also mentions the layer ordering issue. Do you fix both?
+  options:
+    - id: option-b1
+      label: "Fix both — I see the layer issue now"
+      narrative: >
+        Alex: "Good. You took the hint and ran with it. That's what
+        I want to see." Morale +5.
+      tracker_effects:
+        morale_delta: 5
+        debt_delta: 0
+        severity_change: ""
+
+    - id: option-b2
+      label: "Base image only — do what Alex said"
+      narrative: >
+        Alex: "That's the base image fixed. The layer order is still
+        wrong. I mentioned it." Technical debt +15.
+      tracker_effects:
+        morale_delta: 0
+        debt_delta: 15
+        severity_change: ""
